@@ -3,6 +3,10 @@ import pygame
 import time
 import random
 
+import win32api
+from PIL import ImageGrab
+import keyboard
+
 
 class App:
     st = None
@@ -49,8 +53,30 @@ class App:
         self.mouse = None
         self.keyboard = None
 
+        self.tl = pygame.Vector2(60, 60)
+        self.br = pygame.Vector2(0, 0)
+
     def menu(self):
-        pass
+        self.screen.fill("black")
+
+        if self.keys((pygame.K_q,))[0]:
+            self.tl = pygame.Vector2(win32api.GetCursorPos())
+
+        if self.keys((pygame.K_e,))[0]:
+            self.br = pygame.Vector2(win32api.GetCursorPos())
+
+        imgtl = ImageGrab.grab((self.tl.x-60, self.tl.y-60, *self.tl), False, True)
+        imgtl = pygame.image.frombytes(imgtl.tobytes(), imgtl.size, imgtl.mode)
+        self.screen.blit(imgtl, (0, 0))
+
+        imgbr = ImageGrab.grab((*self.br, self.br.x + 60, self.br.y + 60), False, True)
+        imgbr = pygame.image.frombytes(imgbr.tobytes(), imgbr.size, imgbr.mode)
+        self.screen.blit(imgbr, (80, 0))
+
+        if self.keys((pygame.K_SPACE,))[0]:
+            self.tl += getcorner(imgtl, pygame.Vector2(imgtl.size)-(1, 1), pygame.Vector2(-1, -1))
+            self.br += getcorner(imgbr, pygame.Vector2(0, 0), pygame.Vector2(1, 1))-(61, 61)
+
 
     def game(self):
         pass
@@ -207,6 +233,23 @@ class App:
             self.clock.tick(60)
             fps_end2 = time.perf_counter()
             self.dt = min(fps_end2 - fps_start - event_time, 0.1)
+
+def getcorner(surf:pygame.Surface, start, dir):
+    c = surf.get_at(start)
+
+    xpos = start.x
+    for x in range(60):
+        if surf.get_at((x*dir.x + start.x, start.y))!=c:
+            xpos = x*dir.x+start.x+1
+            break
+
+    ypos = start.y
+    for y in range(60):
+        if surf.get_at((start.x, y * dir.y + start.y)) != c:
+            ypos = y * dir.y + start.y+1
+            break
+
+    return pygame.Vector2(xpos, ypos)
 
 if __name__ == "__main__":
     app = App()
