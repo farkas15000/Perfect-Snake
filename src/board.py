@@ -7,7 +7,8 @@ def colordif(color1, color2):
 class Board:
     def __init__(self, img:pygame.Surface):
         self.colors = dict()
-        self.items = {}
+
+        self.snake = None
 
         self.w = 1
         self.h = 1
