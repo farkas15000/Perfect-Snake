@@ -7,10 +7,12 @@ import win32api
 from PIL import ImageGrab
 import keyboard
 
+from board import Board
+
 
 class App:
     st = None
-    state = "menu"
+    state = "start"
     states = {}
 
     def __init__(self):
@@ -23,8 +25,8 @@ class App:
 
         self.winResolution = 600, 600
 
-        self.states.update({"menu": self.menu,
-                            "game": self.game,
+        self.states.update({"start": self.start,
+                            "board": self.board,
                             })
         App.st = self
 
@@ -45,6 +47,8 @@ class App:
         self.display = self.window.get_surface()
         self.screen = pygame.Surface(self.logical_sizeRect.size).convert()
 
+        self.font = pygame.font.Font(size=45)
+
         self.dt = 0.016
         self.running = True
         self.mousePos = None
@@ -56,13 +60,18 @@ class App:
         self.tl = pygame.Vector2(60, 60)
         self.br = pygame.Vector2(0, 0)
 
-    def menu(self):
+        self.img = None
+        self.field = None
+        self.fieldw = 10
+        self.fieldh = 10
+
+    def start(self):
         self.screen.fill("black")
 
-        if self.keys((pygame.K_q,))[0]:
+        if keyboard.is_pressed("q"):
             self.tl = pygame.Vector2(win32api.GetCursorPos())
 
-        if self.keys((pygame.K_e,))[0]:
+        if keyboard.is_pressed("e"):
             self.br = pygame.Vector2(win32api.GetCursorPos())
 
         imgtl = ImageGrab.grab((self.tl.x-60, self.tl.y-60, *self.tl), False, True)
@@ -73,18 +82,73 @@ class App:
         imgbr = pygame.image.frombytes(imgbr.tobytes(), imgbr.size, imgbr.mode)
         self.screen.blit(imgbr, (80, 0))
 
-        if self.keys((pygame.K_SPACE,))[0]:
-            self.tl += getcorner(imgtl, pygame.Vector2(imgtl.size)-(1, 1), pygame.Vector2(-1, -1))
-            self.br += getcorner(imgbr, pygame.Vector2(0, 0), pygame.Vector2(1, 1))-(61, 61)
+        if keyboard.is_pressed("space") and self.tl.x<self.br.x and self.tl.y<self.br.y and self.window.focused:
+            self.tl = getcorner(imgtl, pygame.Vector2(imgtl.size)-(1, 1), pygame.Vector2(-1, -1)) + self.tl-(60, 60)
+            self.br = getcorner(imgbr, pygame.Vector2(0, 0), pygame.Vector2(1, 1)) + self.br - (1, 1)
+
+            App.state = "board"
 
 
-    def game(self):
-        pass
+    def board(self):
+        if not self.img:
+            img = ImageGrab.grab((*self.tl, *self.br), False, True)
+            self.img = pygame.image.frombytes(img.tobytes(), img.size, img.mode)
+
+        if self.logical_sizeRect.w!=max(self.img.width, 500) or self.logical_sizeRect.height!=self.img.height+100:
+            self.logical_sizeRect.size = (max(self.img.width, 500), self.img.height+100)
+            self.screen = pygame.Surface(self.logical_sizeRect.size).convert()
+
+        self.screen.fill("black")
+
+        tlcorner = pygame.Vector2(max(self.img.width, 500)//2-self.img.width//2, 100)
+        self.screen.blit(self.img, tlcorner)
+
+        if not self.field:
+            self.field = Board(self.img)
+            print(len(self.field.colors))
+            print(self.field.colors)
+
+        else:
+            for k, c in enumerate(self.field.colors):
+                pygame.draw.rect(self.screen, c, pygame.Rect(k*10, 0, 10, 10))
+
+        if pygame.Rect(8, 17, 100, 32).collidepoint(self.mousePos[1]):
+            self.fieldw = self.inputToNum(self.fieldw, 0, 100)
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8, 17, 100, 32))
+
+        if pygame.Rect(8+110, 17, 100, 32).collidepoint(self.mousePos[1]):
+            self.fieldh = self.inputToNum(self.fieldh, 0, 100)
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8+110, 17, 100, 32))
+
+        widthimg = self.font.render("W:"+str(self.fieldw), False, "white", None).convert_alpha()
+        self.screen.blit(widthimg, (10, 20))
+        heightimg = self.font.render("H:"+str(self.fieldh), False, "white", None).convert_alpha()
+        self.screen.blit(heightimg, (120, 20))
+
+        cellw = self.img.width//self.fieldw
+        cellh = self.img.height//self.fieldh
+        for x in range(1, self.fieldw):
+            pygame.draw.line(self.screen, "black", (tlcorner.x+x*cellw, 100), (tlcorner.x+x*cellw, self.screen.height-1))
+            pygame.draw.line(self.screen, "black", (tlcorner.x+x*cellw+1, 100), (tlcorner.x+x*cellw+1, self.screen.height-1))
+
+        for y in range(1, self.fieldh):
+            pygame.draw.line(self.screen, "black", (tlcorner.x, tlcorner.y+y*cellh), (tlcorner.x+self.img.width, tlcorner.y+y*cellh))
+            pygame.draw.line(self.screen, "black", (tlcorner.x, tlcorner.y+y*cellh+1), (tlcorner.x+self.img.width, tlcorner.y+y*cellh+1))
+
+
 
     def events(self) -> float:
         fps_start = time.perf_counter()
+        self.key = -1
+        self.chargot = False
 
         for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                self.key = event.key
+            if event.type == pygame.TEXTINPUT:
+                self.char = event.text
+                self.chargot = True
+
             if event.type == pygame.WINDOWRESIZED and not self.fullscreen:
                 self.winResolution = self.window.size
 
@@ -138,6 +202,15 @@ class App:
                 released += 1
 
         return pressed, held, released
+
+    def inputToNum(self, value, minvalue, maxvalue):
+        text = str(value)
+        if self.keys((pygame.K_BACKSPACE,))[0]:
+            text = text[:-1]
+        if self.chargot and self.char in "0123456789":
+            text += self.char
+        text = min(int(text) if text else minvalue, maxvalue)
+        return text
 
     def resize(self, scale=None):
         """
@@ -250,6 +323,9 @@ def getcorner(surf:pygame.Surface, start, dir):
             break
 
     return pygame.Vector2(xpos, ypos)
+
+def colordif(color1, color2):
+    return (abs(color1[0]-color2[0])+abs(color1[1]-color2[1])+abs(color1[2]-color2[2]))/(3*255)
 
 if __name__ == "__main__":
     app = App()
