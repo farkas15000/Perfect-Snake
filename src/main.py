@@ -8,6 +8,9 @@ from PIL import ImageGrab
 import keyboard
 
 from board import Board
+from cell import Cell
+from snake import Snake
+from agent import Agent
 
 
 class App:
@@ -62,11 +65,14 @@ class App:
         self.br = pygame.Vector2(0, 0)
 
         self.img = None
-        self.field = None
+        self.field: Board|None = None
         self.fieldw = 0
         self.fieldh = 0
+        self.cellw = 0
+        self.cellh = 0
         self.head = None
         self.tail = None
+        self.agent: Agent|None = None
 
     def start(self):
         self.screen.fill("black")
@@ -85,7 +91,7 @@ class App:
         imgbr = pygame.image.frombytes(imgbr.tobytes(), imgbr.size, imgbr.mode)
         self.screen.blit(imgbr, (80, 0))
 
-        if keyboard.is_pressed("space") and self.tl.x<self.br.x and self.tl.y<self.br.y and self.window.focused:
+        if keyboard.is_pressed("space") and self.tl.x<self.br.x and self.tl.y<self.br.y:
             self.tl = getcorner(imgtl, pygame.Vector2(imgtl.size)-(1, 1), pygame.Vector2(-1, -1)) + self.tl-(60, 60)
             self.br = getcorner(imgbr, pygame.Vector2(0, 0), pygame.Vector2(1, 1)) + self.br - (1, 1)
 
@@ -106,15 +112,15 @@ class App:
         tlcorner = pygame.Vector2(max(self.img.width, 500)//2-self.img.width//2, 100)
         self.screen.blit(self.img, tlcorner)
 
-        """if not self.field:
-            self.field = Board(self.img)
+        if not self.field:
+            """self.field = Board(self.img)
             print(len(self.field.colors))
-            print(self.field.colors)
+            print(self.field.colors)"""
+            pass
 
         else:
             for k, c in enumerate(self.field.colors):
                 pygame.draw.rect(self.screen, c, pygame.Rect(k*10, 0, 10, 10))
-        """
 
         fieldwprev = self.fieldw
         if pygame.Rect(8, 17, 100, 32).collidepoint(self.mousePos[1]):
@@ -171,22 +177,57 @@ class App:
         if self.head is not None:
             pygame.draw.rect(self.screen, "blue", pygame.Rect(tlcorner.x+self.head.x*cellw, tlcorner.y+self.head.y*cellh, round(cellw), round(cellh)), 3, round(cellw/3))
 
-        if ready and keyboard.is_pressed("space"):# and not self.window.focused:
+        if self.field:
+            pygame.draw.rect(self.screen, "red", pygame.Rect(tlcorner.x+self.field.food.x*cellw, tlcorner.y+self.field.food.y*cellh, round(cellw), round(cellh)), 3, round(cellw/3))
+
+
+        if ready and keyboard.is_pressed("space") and not self.window.focused:
             img = ImageGrab.grab((*self.tl, *self.br), False, True)
             self.img = pygame.image.frombytes(img.tobytes(), img.size, img.mode)
 
-            self.field = Board(self.img)
-            self.field.w = self.fieldw
-            self.field.h = self.fieldh
+            self.cellw = cellw
+            self.cellh = cellh
+
+            self.field = Board(self.fieldw, self.fieldh, self.img)
 
             if self.head.x == self.tail.x:
-                self.field.snake = list(pygame.Vector2(int(self.head.x), y) for y in range(int(self.tail.y), int(self.head.y)+(1 if self.tail.y<=self.head.y else -1), 1 if self.tail.y<=self.head.y else -1))
+                self.field.snake = Snake(list(Cell(int(self.head.x), y) for y in range(int(self.tail.y), int(self.head.y)+(1 if self.tail.y<=self.head.y else -1), 1 if self.tail.y<=self.head.y else -1)), None)
             else:
-                self.field.snake = list(pygame.Vector2(x, int(self.head.y)) for x in range(int(self.tail.x), int(self.head.x)+(1 if self.tail.x<=self.head.x else -1), 1 if self.tail.x<=self.head.x else -1))
+                self.field.snake = Snake(list(Cell(x, int(self.head.y)) for x in range(int(self.tail.x), int(self.head.x)+(1 if self.tail.x<=self.head.x else -1), 1 if self.tail.x<=self.head.x else -1)), None)
 
+            self.agent = Agent(self.field)
+
+            if not self.field.headinsync(self.img):
+                dir = self.field.snake.tail().dirto(self.field.snake.head())
+                keyboard.press_and_release(Cell.dirtokeycode(dir))
+                print(Cell.dirtokeycode(dir))
+
+            App.state = "game"
 
     def game(self):
-        pass
+        if keyboard.is_pressed("esc"):
+            self.quit()
+
+        img = ImageGrab.grab((*self.tl, *self.br), False, True)
+        self.img = pygame.image.frombytes(img.tobytes(), img.size, img.mode)
+
+        tlcorner = pygame.Vector2(max(self.img.width, 500) // 2 - self.img.width // 2, 100)
+        self.screen.fill("black")
+        self.screen.blit(self.img, tlcorner)
+
+        pygame.draw.rect(self.screen, self.field.headcolor, pygame.Rect(10, 10, 30, 30))
+        pygame.draw.rect(self.screen, self.field.foodcolor, pygame.Rect(50, 10, 30, 30))
+
+        self.field.foodfind(self.img)
+        if self.field.food is not None:
+            pygame.draw.rect(self.screen, "red", pygame.Rect(tlcorner.x + self.field.food.x * self.cellw, tlcorner.y + self.field.food.y * self.cellh, round(self.cellw)-3, round(self.cellh)-3), 3, round(self.cellw / 3))
+
+        for cell in self.field.snake.snake:
+            pygame.draw.rect(self.screen, "blue", pygame.Rect(tlcorner.x + cell.x * self.cellw, tlcorner.y + cell.y * self.cellh, round(self.cellw), round(self.cellh)), 3, round(self.cellw / 3))
+
+        if self.field.food is not None and self.field.headinsync(self.img):
+            dir = self.field.getDirection(self.agent)
+            keyboard.press_and_release(Cell.dirtokeycode(dir))
 
     def events(self) -> float:
         fps_start = time.perf_counter()
