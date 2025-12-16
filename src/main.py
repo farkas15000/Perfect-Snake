@@ -199,8 +199,8 @@ class App:
 
             if not self.field.headinsync(self.img):
                 dir = self.field.snake.tail().dirto(self.field.snake.head())
+                self.field.lastdir = dir
                 keyboard.press_and_release(Cell.dirtokeycode(dir))
-                print(Cell.dirtokeycode(dir))
 
             App.state = "game"
 
@@ -218,7 +218,12 @@ class App:
         pygame.draw.rect(self.screen, self.field.headcolor, pygame.Rect(10, 10, 30, 30))
         pygame.draw.rect(self.screen, self.field.foodcolor, pygame.Rect(50, 10, 30, 30))
 
-        self.field.foodfind(self.img)
+        for k, c in enumerate(self.field.colors):
+            pygame.draw.rect(self.screen, c, pygame.Rect(k * 10, 0, 10, 10))
+
+        if self.field.food is None:
+            self.field.foodfind(self.img)
+
         if self.field.food is not None:
             pygame.draw.rect(self.screen, "red", pygame.Rect(tlcorner.x + self.field.food.x * self.cellw, tlcorner.y + self.field.food.y * self.cellh, round(self.cellw)-3, round(self.cellh)-3), 3, round(self.cellw / 3))
 
