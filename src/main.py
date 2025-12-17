@@ -56,8 +56,11 @@ class App:
         self.keyboard = None
 
         self.fps = 60
+        self.timer = 0
         self.speed = 8
+        self.skipto = 0
         self.selected = None
+        self.seed = 0
         self.board: Board | None = None
         self.boardW = 10
         self.boardH = 10
@@ -67,6 +70,14 @@ class App:
         self.tail = None
         self.agent: Agent|None = None
         self.resoult = 0
+        self.paused = False
+
+        self.seedimg = None
+        self.startimg = self.font.render("Start", False, "white", None).convert_alpha()
+        self.stopimg = self.font.render("Stop", False, "white", None).convert_alpha()
+        self.pauseimg = self.font.render("Pause", False, "white", None).convert_alpha()
+        self.resumeimg = self.font.render("Resume", False, "white", None).convert_alpha()
+        self.nextimg = self.font.render("Next", False, "white", None).convert_alpha()
 
     def setup(self):
         if self.mouse[1][0]:
@@ -95,18 +106,37 @@ class App:
         if pygame.Rect(8 + 240, 17, 210, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "speed"
         if self.selected == "speed":
-            self.speed = self.inputToNum(self.speed, 0, 1000)
+            self.speed = self.inputToNum(self.speed, 0, 9999)
         pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "speed" else (25, 25, 25), pygame.Rect(8 + 240, 17, 210, 32))
         speedimg = self.font.render("Steps: " + str(self.speed) + "/s", False, "white", None).convert_alpha()
         self.screen.blit(speedimg, (10 + 240, 20))
 
+        if pygame.Rect(8 + 460, 17, 210, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
+            self.selected = "seed"
+        if self.selected == "seed":
+            self.seed = self.inputToNum(self.seed, 0, 999999)
+        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "seed" else (25, 25, 25), pygame.Rect(8 + 460, 17, 210, 32))
+        self.seedimg = self.font.render("Seed: " + (str(self.seed) if self.seed!=0 else "random"), False, "white", None).convert_alpha()
+        self.screen.blit(self.seedimg, (10 + 460, 20))
+
+        if pygame.Rect(8, 57, 240, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
+            self.selected = "skipto"
+        if self.selected == "skipto":
+            self.skipto = self.inputToNum(self.skipto, 0, 999999)
+        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "skipto" else (25, 25, 25), pygame.Rect(8 , 57, 240, 32))
+        skiptoimg = self.font.render("Skip to: " + (str(self.skipto) if self.skipto!=0 else "-"), False, "white", None).convert_alpha()
+        self.screen.blit(skiptoimg, (10, 60))
+
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 700, 57, 80, 32))
+        self.screen.blit(self.startimg, (10 + 700, 60))
+
         c = max(min(800//max(self.boardW, 1), 800//max(self.boardH, 1)), 8)
         w = self.boardW*c
         h = self.boardH*c
-        tlcorner = pygame.Vector2(max(w, 600) // 2 - w // 2, 100)
+        tlcorner = pygame.Vector2(max(w, 800) // 2 - w // 2, 100)
 
         if boardWprev!=self.boardW or boardHprev!=self.boardH:
-            self.logical_sizeRect.size = (max(w, 600), h+100)
+            self.logical_sizeRect.size = (max(w, 800), h+100)
             self.screen = pygame.Surface(self.logical_sizeRect.size).convert()
 
             self.head = None
@@ -129,25 +159,22 @@ class App:
 
         pygame.draw.rect(self.screen, (40, 40, 40, 255), pygame.Rect(*tlcorner, w, h), width=0)
 
-        for x in range(1, self.boardW):
-            pygame.draw.line(self.screen, "black", (tlcorner.x + x * c, 100), (tlcorner.x + x * c, self.screen.height - 1))
-            pygame.draw.line(self.screen, "black", (tlcorner.x + x * c + 1, 100), (tlcorner.x + x * c + 1, self.screen.height - 1))
-
-        for y in range(1, self.boardH):
-            pygame.draw.line(self.screen, "black", (tlcorner.x, tlcorner.y + y * c), (tlcorner.x + w, tlcorner.y + y * c))
-            pygame.draw.line(self.screen, "black", (tlcorner.x, tlcorner.y + y * c + 1), (tlcorner.x + h, tlcorner.y + y * c + 1))
+        for x in range(self.boardW):
+            for y in range(self.boardH):
+                color = (30, 30, 30, 255) if (x + y) % 2 else (40, 40, 40, 255)
+                pygame.draw.rect(self.screen, color, pygame.Rect(tlcorner.x + x * c, tlcorner.y + y * c, c, c), 0)
 
         ready = False
         if self.head is not None and self.tail is not None and (self.head.x == self.tail.x or self.head.y == self.tail.y) and self.head.distance_to(self.tail)>=2:
             ready = True
-            pygame.draw.rect(self.screen, "orange", pygame.Rect(tlcorner.x+min(self.head.x, self.tail.x)*c, tlcorner.y+min(self.head.y, self.tail.y)*c, c*(abs(self.head.x-self.tail.x)+1), c*(abs(self.head.y-self.tail.y)+1)), 3, round(c/2.5))
+            pygame.draw.rect(self.screen, (0, 0, 120, 255), pygame.Rect(tlcorner.x+min(self.head.x, self.tail.x)*c, tlcorner.y+min(self.head.y, self.tail.y)*c, c*(abs(self.head.x-self.tail.x)+1), c*(abs(self.head.y-self.tail.y)+1)), 0, round(c/2.5))
         elif self.tail is not None:
-            pygame.draw.rect(self.screen, "orange", pygame.Rect(tlcorner.x+self.tail.x*c, tlcorner.y+self.tail.y*c, c, c), 3, round(c/2.5))
+            pygame.draw.rect(self.screen, (0, 0, 120, 255), pygame.Rect(tlcorner.x+self.tail.x*c, tlcorner.y+self.tail.y*c, c, c), 0, round(c/2.5))
 
         if self.head is not None:
-            pygame.draw.rect(self.screen, "blue", pygame.Rect(tlcorner.x+self.head.x*c, tlcorner.y+self.head.y*c, c, c), 3, round(c/2.5))
+            pygame.draw.rect(self.screen, (0, 0, 80, 255), pygame.Rect(tlcorner.x+self.head.x*c, tlcorner.y+self.head.y*c, c, c), 0, round(c/2.5))
 
-        if ready and self.keys((pygame.K_SPACE,))[0]:
+        if ready and (self.keys((pygame.K_RETURN,))[0] or (pygame.Rect(7 + 700, 57, 80, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0])):
             self.cellsize = c
             self.tlcorner = tlcorner
 
@@ -156,42 +183,72 @@ class App:
             else:
                 snake = Snake(list(Cell(x, int(self.head.y)) for x in range(int(self.tail.x), int(self.head.x) + (1 if self.tail.x <= self.head.x else -1), 1 if self.tail.x <= self.head.x else -1)), None)
 
-            self.board = Board(self.boardW, self.boardH, snake)
+            self.board = Board(self.boardW, self.boardH, snake, self.seed)
             self.agent = Agent(self.board)
 
+            self.timer = 0
+            self.paused = False
+
+            for x in  range(self.skipto):
+                res = self.board.update(self.agent)
+                if res!=0:
+                    break
             self.drawboard()
 
             App.state = "game"
 
     def game(self):
-        if self.resoult == 0 :
-            self.resoult = self.board.update(self.agent)
+        if not self.paused:
+            self.timer += self.dt
+            while self.resoult == 0 and self.speed>0 and self.timer>1/self.speed:
+                self.timer-=1/self.speed
+                self.resoult = self.board.update(self.agent)
+        elif self.keys((pygame.K_n,))[0] or (pygame.Rect(7 + 600, 57, 80, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]):
+            if self.resoult == 0:
+                self.resoult = self.board.update(self.agent)
 
         self.screen.fill("black")
 
         lengthimg = self.font.render("Length: " + str(len(self.board.snake.snake)), False, "white", None).convert_alpha()
         self.screen.blit(lengthimg, (10, 20))
         stepsimg = self.font.render("Steps: " + str(self.board.steps), False, "white", None).convert_alpha()
-        self.screen.blit(stepsimg, (10, 55))
+        self.screen.blit(stepsimg, (10, 60))
+
+        if self.keys((pygame.K_SPACE,))[0] or (pygame.Rect(7 + 460, 57, 130, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]):
+            self.paused = not self.paused
+
+        if not self.paused:
+            pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 460, 57, 100, 32))
+            self.screen.blit(self.pauseimg, (10 + 460, 60))
+        else:
+            pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 460, 57, 130, 32))
+            self.screen.blit(self.resumeimg, (10 + 460, 60))
+
+            pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 600, 57, 80, 32))
+            self.screen.blit(self.nextimg, (10 + 600, 60))
+
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 700, 57, 80, 32))
+        self.screen.blit(self.stopimg, (10 + 700, 60))
+
+        self.screen.blit(self.seedimg, (10 + 460, 20))
 
         self.drawboard()
 
-        if self.keys((pygame.K_SPACE,))[0]:
+        if self.keys((pygame.K_RETURN,))[0] or (pygame.Rect(7 + 700, 57, 80, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]):
             self.selected = None
             self.board = None
             self.resoult = 0
 
             App.state = "setup"
 
-
     def drawboard(self):
         for x in range(self.boardW):
             for y in range(self.boardH):
-                pos = Cell(x, y)
                 color = (30, 30, 30, 255) if (x + y) % 2 else (40, 40, 40, 255)
                 pygame.draw.rect(self.screen, color, pygame.Rect(self.tlcorner.x + x * self.cellsize, self.tlcorner.y + y * self.cellsize, self.cellsize, self.cellsize), 0)
-                if pos.toString() in self.board.snake.cells:
-                    pygame.draw.rect(self.screen, (0, 0, 120, 255), pygame.Rect(self.tlcorner.x + x * self.cellsize, self.tlcorner.y + y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 3))
+
+        for c in self.board.snake.snake:
+            pygame.draw.rect(self.screen, (0, 0, 120, 255), pygame.Rect(self.tlcorner.x + c.x * self.cellsize, self.tlcorner.y + c.y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 2.5))
 
         pygame.draw.rect(self.screen, "red", pygame.Rect(self.tlcorner.x + self.board.food.x * self.cellsize, self.tlcorner.y + self.board.food.y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 2))
 

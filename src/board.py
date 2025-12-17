@@ -12,6 +12,7 @@ class Board:
         Snake.h = h
 
         self.seed = seed
+        random.seed(self.seed if self.seed!=0 else None)
         self.steps = 0
 
         self.snake: Snake = snake
