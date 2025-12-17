@@ -12,7 +12,7 @@ class Snake:
     def copy(self):
         return Snake(self.snake, self.losttail)
 
-    def __init__(self, snake, losttail):
+    def __init__(self, snake, losttail=None):
         self.snake = deque(snake)
         self.cells = set(cell.toString() for cell in snake)
         self.losttail = losttail
@@ -40,8 +40,8 @@ class Snake:
         self.cells.remove(tail.toString())
 
     def applydir(self, dir: Cell):
-        self.addHead(self.nexthead(dir))
         self.removeTail()
+        self.addHead(self.nexthead(dir))
 
     def reatachtail(self):
         self.snake.appendleft(self.losttail)

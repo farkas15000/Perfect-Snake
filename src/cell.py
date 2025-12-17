@@ -8,6 +8,9 @@ class Cell:
     def toString(self):
         return f"({self.x}, {self.y})"
 
+    def __repr__(self):
+        return self.toString()
+
     def __add__(self, other):
         self.x += other.x
         self.y += other.y
@@ -28,7 +31,14 @@ class Cell:
         return abs(self.x-other.x)+abs(self.y-other.y)
 
     def dirto(self, other):
-        return Cell(min(max(other.x-self.x, -1), 1), min(max(other.y-self.y, -1), 1))
+        if  abs(other.x-self.x) > abs(other.y-self.y):
+            return Cell(min(max(other.x-self.x, -1), 1), 0)
+        else:
+            return Cell(0, min(max(other.y - self.y, -1), 1))
+
+    def isdir(self):
+        return abs(self.x)+abs(self.y)==1
+
 
     def converttodir(self):
         self.x = min(max(self.x, -1), 1)
