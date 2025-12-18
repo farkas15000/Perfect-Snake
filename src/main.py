@@ -1,3 +1,5 @@
+import json
+import os
 import platform
 import pygame
 import time
@@ -71,6 +73,14 @@ class App:
         self.agent: Agent|None = None
         self.resoult = 0
         self.paused = False
+        self.autosave = True
+
+        self.save(load=True)
+
+        if self.head is not None:
+            self.head = Cell(*self.head)
+        if self.tail is not None:
+            self.tail = Cell(*self.tail)
 
         self.seedimg = None
         self.startimg = self.font.render("Start", False, "white", None).convert_alpha()
@@ -78,6 +88,8 @@ class App:
         self.pauseimg = self.font.render("Pause", False, "white", None).convert_alpha()
         self.resumeimg = self.font.render("Resume", False, "white", None).convert_alpha()
         self.nextimg = self.font.render("Next", False, "white", None).convert_alpha()
+        self.autosaveonimg = self.font.render("Auto save: On", False, "white", None).convert_alpha()
+        self.autosaveoffimg = self.font.render("Auto save: Off", False, "white", None).convert_alpha()
 
     def setup(self):
         if self.mouse[1][0]:
@@ -115,7 +127,7 @@ class App:
             self.selected = "seed"
         if self.selected == "seed":
             self.seed = self.inputToNum(self.seed, 0, 999999)
-        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "seed" else (25, 25, 25), pygame.Rect(8 + 460, 17, 210, 32))
+        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "seed" else (25, 25, 25), pygame.Rect(8 + 460, 17, 212, 32))
         self.seedimg = self.font.render("Seed: " + (str(self.seed) if self.seed!=0 else "random"), False, "white", None).convert_alpha()
         self.screen.blit(self.seedimg, (10 + 460, 20))
 
@@ -126,6 +138,14 @@ class App:
         pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "skipto" else (25, 25, 25), pygame.Rect(8 , 57, 240, 32))
         skiptoimg = self.font.render("Skip to: " + (str(self.skipto) if self.skipto!=0 else "-"), False, "white", None).convert_alpha()
         self.screen.blit(skiptoimg, (10, 60))
+
+        if pygame.Rect(8 + 460, 57, 212, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]:
+            self.autosave = not self.autosave
+            if not self.autosave:
+                self.save()
+
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8 + 460, 57, 212, 32))
+        self.screen.blit(self.autosaveonimg if self.autosave else self.autosaveoffimg, (10 + 460, 60))
 
         pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 700, 57, 80, 32))
         self.screen.blit(self.startimg, (10 + 700, 60))
@@ -152,10 +172,10 @@ class App:
 
             if x is not None and y is not None:
                 if self.mouse[1][0]:
-                    self.head = pygame.Vector2(x, y)
+                    self.head = Cell(x, y)
 
                 if self.mouse[1][2]:
-                    self.tail = pygame.Vector2(x, y)
+                    self.tail = Cell(x, y)
 
         pygame.draw.rect(self.screen, (40, 40, 40, 255), pygame.Rect(*tlcorner, w, h), width=0)
 
@@ -165,7 +185,7 @@ class App:
                 pygame.draw.rect(self.screen, color, pygame.Rect(tlcorner.x + x * c, tlcorner.y + y * c, c, c), 0)
 
         ready = False
-        if self.head is not None and self.tail is not None and (self.head.x == self.tail.x or self.head.y == self.tail.y) and self.head.distance_to(self.tail)>=2:
+        if self.head is not None and self.tail is not None and (self.head.x == self.tail.x or self.head.y == self.tail.y) and self.head.distManhattan(self.tail)>=2:
             ready = True
             pygame.draw.rect(self.screen, (0, 0, 120, 255), pygame.Rect(tlcorner.x+min(self.head.x, self.tail.x)*c, tlcorner.y+min(self.head.y, self.tail.y)*c, c*(abs(self.head.x-self.tail.x)+1), c*(abs(self.head.y-self.tail.y)+1)), 0, round(c/2.5))
         elif self.tail is not None:
@@ -194,6 +214,9 @@ class App:
                 if res!=0:
                     break
             self.drawboard()
+
+            if self.autosave:
+                self.save()
 
             App.state = "game"
 
@@ -253,6 +276,29 @@ class App:
         pygame.draw.rect(self.screen, "red", pygame.Rect(self.tlcorner.x + self.board.food.x * self.cellsize, self.tlcorner.y + self.board.food.y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 2))
 
         pygame.draw.rect(self.screen, (0, 0, 80, 255), pygame.Rect(self.tlcorner.x + self.board.snake.head().x * self.cellsize, self.tlcorner.y + self.board.snake.head().y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 2.5))
+
+    def save(self, load=False):
+        settings_attars = ("autosave", "speed", "skipto", "seed", "boardW", "boardH", "head", "tail",)
+
+        save = os.path.join("..", 'snake_settings.save')
+
+        if load:
+            try:
+                with open(save, 'r') as file:
+                    data = json.loads(file.read())
+                print('reading save')
+
+                for attr in settings_attars:
+                    setattr(self, attr, data.get(attr, getattr(self, attr)))
+
+            except FileNotFoundError:
+                print('save not found, creating new save')
+        else:
+            print("saving")
+
+        settings_deafult = {attar: (getattr(self, attar) if not isinstance(getattr(self, attar), Cell) else (getattr(self, attar).toTouple())) for attar in settings_attars}
+        with open(save, 'w') as file:
+            file.write(json.dumps(settings_deafult, indent=4))
 
     def events(self) -> float:
         fps_start = time.perf_counter()
@@ -426,23 +472,6 @@ class App:
             self.clock.tick(self.fps)
             fps_end2 = time.perf_counter()
             self.dt = min(fps_end2 - fps_start - event_time, 0.1)
-
-def getcorner(surf:pygame.Surface, start, dir):
-    c = surf.get_at(start)
-
-    xpos = start.x
-    for x in range(60):
-        if surf.get_at((x*dir.x + start.x, start.y))!=c:
-            xpos = x*dir.x+start.x+1
-            break
-
-    ypos = start.y
-    for y in range(60):
-        if surf.get_at((start.x, y * dir.y + start.y)) != c:
-            ypos = y * dir.y + start.y+1
-            break
-
-    return pygame.Vector2(xpos, ypos)
 
 if __name__ == "__main__":
     app = App()

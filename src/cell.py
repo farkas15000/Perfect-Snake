@@ -11,6 +11,9 @@ class Cell:
     def __repr__(self):
         return self.toString()
 
+    def toTouple(self):
+        return self.x, self.y
+
     def __add__(self, other):
         self.x += other.x
         self.y += other.y
