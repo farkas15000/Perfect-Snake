@@ -17,20 +17,25 @@ class Snake:
         self.cells = set(cell.toString() for cell in snake)
         self.losttail = losttail
 
-    def head(self):
-        h: Cell =  self.snake.pop()
-        self.snake.append(h)
-        return h
+        self._head: Cell = self.snake.pop()
+        self.snake.append(self._head)
 
+        self._tail: Cell = self.snake.popleft()
+        self.snake.appendleft(self._tail)
+
+    @property
+    def head(self):
+        return self._head
+
+    @property
     def tail(self):
-        t: Cell = self.snake.popleft()
-        self.snake.appendleft(t)
-        return t
+        return self._tail
 
     def nexthead(self, dir: Cell):
-        return  self.head().copy()+dir
+        return  self.head.copy()+dir
 
     def addHead(self, head:Cell):
+        self._head = head
         self.snake.append(head)
         self.cells.add(head.toString())
 
@@ -39,11 +44,15 @@ class Snake:
         self.losttail = tail
         self.cells.remove(tail.toString())
 
+        self._tail = self.snake.popleft()
+        self.snake.appendleft(self._tail)
+
     def applydir(self, dir: Cell):
         self.removeTail()
         self.addHead(self.nexthead(dir))
 
     def reatachtail(self):
+        self._tail = self.losttail
         self.snake.appendleft(self.losttail)
         self.cells.add(self.losttail.toString())
 
@@ -51,7 +60,7 @@ class Snake:
         if not(0 <= cell.x < Snake.w and 0 <= cell.y < Snake.h):
             return Snake.BODY
 
-        t = self.tail()
+        t = self.tail
         if not cell==t and cell.toString() in self.cells:
             return Snake.BODY
 

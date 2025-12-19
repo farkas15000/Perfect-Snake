@@ -17,7 +17,7 @@ class Board:
         self.timeout = int(self.area*2.5)
 
         self.snake: Snake = snake
-        self.lastdir = self.snake.tail().dirto(self.snake.head())
+        self.lastdir = self.snake.tail.dirto(self.snake.head)
 
         self.food: Cell|None = None
         self.spawnfood()
@@ -37,7 +37,7 @@ class Board:
         self.steps+=1
         self.timeout-=1
 
-        if self.snake.head()==self.food:
+        if self.snake.head==self.food:
             self.snake.reatachtail()
             if len(self.snake)<self.area:
                 self.spawnfood()

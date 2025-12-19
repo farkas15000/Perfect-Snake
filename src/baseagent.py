@@ -1,7 +1,8 @@
 from board import Board
 from snake import Snake
+from cell import Cell
 
-class Agent:
+class BaseAgent:
     def __init__(self, board:Board):
         self.game = board
 
@@ -32,9 +33,11 @@ class Agent:
 
     @property
     def snake(self):
-        return self.game.snake
+        s: Snake = self.game.snake
+        return s
 
     @property
     def food(self):
-        return self.game.food
+        f: Cell = self.game.food
+        return f
 

@@ -7,7 +7,7 @@ import time
 from board import Board
 from cell import Cell
 from snake import Snake
-from agent import Agent
+from baseagent import BaseAgent
 from perfect_agent import PerfectAgent
 
 
@@ -39,14 +39,14 @@ class App:
         pygame.init()
         self.clock = pygame.time.Clock()
 
-        self.logical_sizeRect = pygame.Rect(0, 0, 800, 900)
+        #self.logical_sizeRect = pygame.Rect(0, 0, 800, 900)
 
         self.window = pygame.Window(size=self.winResolution)
         self.window.resizable = True
         self.window.title = "Perfect Snake"
 
         self.display = self.window.get_surface()
-        self.screen = pygame.Surface(self.logical_sizeRect.size).convert()
+        #self.screen = pygame.Surface(self.logical_sizeRect.size).convert()
 
         self.font = pygame.font.Font(size=45)
 
@@ -71,12 +71,19 @@ class App:
         self.tlcorner = None
         self.head = None
         self.tail = None
-        self.agent: Agent|None = None
+        self.agent: BaseAgent | None = None
         self.resoult = 0
         self.paused = False
         self.autosave = True
 
         self.save(load=True)
+
+        c = max(min(800 // max(self.boardW, 1), 800 // max(self.boardH, 1)), 8)
+        w = self.boardW * c
+        h = self.boardH * c
+
+        self.logical_sizeRect = pygame.Rect(0, 0,max(w, 800), h + 100)
+        self.screen = pygame.Surface(self.logical_sizeRect.size).convert()
 
         if self.head is not None:
             self.head = Cell(*self.head)
@@ -280,7 +287,7 @@ class App:
 
         pygame.draw.rect(self.screen, "red", pygame.Rect(self.tlcorner.x + self.board.food.x * self.cellsize, self.tlcorner.y + self.board.food.y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 2))
 
-        pygame.draw.rect(self.screen, (0, 0, 80, 255), pygame.Rect(self.tlcorner.x + self.board.snake.head().x * self.cellsize, self.tlcorner.y + self.board.snake.head().y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 2.5))
+        pygame.draw.rect(self.screen, (0, 0, 80, 255), pygame.Rect(self.tlcorner.x + self.board.snake.head.x * self.cellsize, self.tlcorner.y + self.board.snake.head.y * self.cellsize, self.cellsize, self.cellsize), 0, round(self.cellsize / 2.5))
 
     def save(self, load=False):
         settings_attars = ("autosave", "speed", "skipto", "seed", "boardW", "boardH", "head", "tail",)
