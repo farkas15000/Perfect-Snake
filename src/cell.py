@@ -30,8 +30,20 @@ class Cell:
     def __eq__(self, other):
         return self.x==other.x and self.y==other.y
 
+    def eq(self, x, y):
+        return self.x == x and self.y == y
+
+    def __iter__(self):
+        return self.x, self.y
+
     def distManhattan(self, other):
         return abs(self.x-other.x)+abs(self.y-other.y)
+
+    def distSquared(self, other):
+        return (self.x-other.x)**2+(self.y-other.y)**2
+
+    def lengthSquared(self):
+        return self.x**2+self.y**2
 
     def dirto(self, other):
         if  abs(other.x-self.x) > abs(other.y-self.y):

@@ -7,13 +7,14 @@ class Board:
     def __init__(self, w, h, snake, seed=None):
         self.w: int = w
         self.h: int = h
-        self.area = w*h
+        self.area: int = w*h
         Snake.w = w
         Snake.h = h
 
         self.seed = seed
         random.seed(self.seed if self.seed!=0 else None)
         self.steps = 0
+        self.timeout = int(self.area*2.5)
 
         self.snake: Snake = snake
         self.lastdir = self.snake.tail().dirto(self.snake.head())
@@ -24,7 +25,7 @@ class Board:
     def update(self, agent):
         dir = agent.getDirection()
 
-        if not dir.isdir():
+        if not dir.isdir() or self.timeout<=0:
             return -1
 
         self.lastdir = dir
@@ -34,11 +35,13 @@ class Board:
 
         self.snake.applydir(dir)
         self.steps+=1
+        self.timeout-=1
 
         if self.snake.head()==self.food:
             self.snake.reatachtail()
             if len(self.snake)<self.area:
                 self.spawnfood()
+                self.timeout = int(self.area*2.5)
             else:
                 return 1
 

@@ -8,6 +8,7 @@ from board import Board
 from cell import Cell
 from snake import Snake
 from agent import Agent
+from perfect_agent import PerfectAgent
 
 
 class App:
@@ -90,6 +91,7 @@ class App:
         self.nextimg = self.font.render("Next", False, "white", None).convert_alpha()
         self.autosaveonimg = self.font.render("Auto save: On", False, "white", None).convert_alpha()
         self.autosaveoffimg = self.font.render("Auto save: Off", False, "white", None).convert_alpha()
+        self.whimg =None
 
     def setup(self):
         if self.mouse[1][0]:
@@ -185,7 +187,7 @@ class App:
                 pygame.draw.rect(self.screen, color, pygame.Rect(tlcorner.x + x * c, tlcorner.y + y * c, c, c), 0)
 
         ready = False
-        if self.head is not None and self.tail is not None and (self.head.x == self.tail.x or self.head.y == self.tail.y) and self.head.distManhattan(self.tail)>=2:
+        if self.boardW > 1 and self.boardH > 1 and self.head is not None and self.tail is not None and (self.head.x == self.tail.x or self.head.y == self.tail.y) and self.head.distManhattan(self.tail)>=2:
             ready = True
             pygame.draw.rect(self.screen, (0, 0, 120, 255), pygame.Rect(tlcorner.x+min(self.head.x, self.tail.x)*c, tlcorner.y+min(self.head.y, self.tail.y)*c, c*(abs(self.head.x-self.tail.x)+1), c*(abs(self.head.y-self.tail.y)+1)), 0, round(c/2.5))
         elif self.tail is not None:
@@ -197,6 +199,7 @@ class App:
         if ready and (self.keys((pygame.K_RETURN,))[0] or (pygame.Rect(7 + 700, 57, 80, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0])):
             self.cellsize = c
             self.tlcorner = tlcorner
+            self.whimg = self.font.render(f"W: {self.boardW}, H: {self.boardH}", False, "white", None).convert_alpha()
 
             if self.head.x == self.tail.x:
                 snake = Snake(list(Cell(int(self.head.x), y) for y in range(int(self.tail.y), int(self.head.y) + (1 if self.tail.y <= self.head.y else -1), 1 if self.tail.y <= self.head.y else -1)), None)
@@ -204,14 +207,14 @@ class App:
                 snake = Snake(list(Cell(x, int(self.head.y)) for x in range(int(self.tail.x), int(self.head.x) + (1 if self.tail.x <= self.head.x else -1), 1 if self.tail.x <= self.head.x else -1)), None)
 
             self.board = Board(self.boardW, self.boardH, snake, self.seed)
-            self.agent = Agent(self.board)
+            self.agent = PerfectAgent(self.board)
 
             self.timer = 0
             self.paused = False
 
             for x in  range(self.skipto):
-                res = self.board.update(self.agent)
-                if res!=0:
+                self.resoult = self.board.update(self.agent)
+                if self.resoult!=0:
                     break
             self.drawboard()
 
@@ -236,6 +239,8 @@ class App:
         self.screen.blit(lengthimg, (10, 20))
         stepsimg = self.font.render("Steps: " + str(self.board.steps), False, "white", None).convert_alpha()
         self.screen.blit(stepsimg, (10, 60))
+
+        self.screen.blit(self.whimg, (245, 20))
 
         if self.keys((pygame.K_SPACE,))[0] or (pygame.Rect(7 + 460, 57, 130, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]):
             self.paused = not self.paused
@@ -294,7 +299,8 @@ class App:
             except FileNotFoundError:
                 print('save not found, creating new save')
         else:
-            print("saving")
+            #print("saving")
+            pass
 
         settings_deafult = {attar: (getattr(self, attar) if not isinstance(getattr(self, attar), Cell) else (getattr(self, attar).toTouple())) for attar in settings_attars}
         with open(save, 'w') as file:
@@ -464,7 +470,7 @@ class App:
             if frame % 8 == 0 and dt:
                 frame = 0
                 self.window.title = (
-                    f"FPS: {int(1 / dt)}, {round(self.clock.get_fps(), 1)} "
+                    f"FPS: {int(1 / dt):>4}, {round(self.clock.get_fps(), 1)} "
                     f"W:{self.window.size[0]} {self.window.size[1]} "
                 )
             frame += 1
