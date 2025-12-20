@@ -43,10 +43,10 @@ class Board:
                 self.spawnfood()
                 self.timeout = int(self.area*2.5)
             else:
+                self.food = Cell(-1, -1)
                 return 1
 
         return 0
-
 
     def spawnfood(self):
         index = random.randrange(0, self.area-len(self.snake))
