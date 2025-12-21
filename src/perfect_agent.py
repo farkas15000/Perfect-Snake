@@ -44,7 +44,7 @@ class PerfectAgent(BaseAgent):
 
         if not self.falback and self.iter == len(self.steps):
             origin = Step(self.snake, self.grid, None, False, self.food)
-            self.steps = Step.A_star(origin, None, False, 0, False)
+            self.steps = Step.A_star(origin, None, True, 0, False)
 
             if self.steps is None:
                 self.falback = True
@@ -389,13 +389,13 @@ class Grid:
         if leftdist<basedist or rightdist<basedist:
             self.split(None, leftdist<rightdist, snake.head)
 
-            if not self.joinaftersplit(snake, food, basedist):
+            if not self.joinaftersplit(snake, food, basedist, False):
                 self.unsplit(None, leftdist<rightdist, snake.head)
 
                 if max(leftdist, rightdist)<basedist:
                     self.split(None, not(leftdist < rightdist), snake.head)
 
-                    if not self.joinaftersplit(snake, food, basedist):
+                    if not self.joinaftersplit(snake, food, basedist, False):
                         self.unsplit(None, not(leftdist < rightdist), snake.head)
 
     def print(self, snake: Snake, food: Cell):
@@ -488,7 +488,7 @@ class Node:
                     neighbor.fScore = tentative_gScore + neighbor.hScore
 
                     if first and (neighbor.satisfied or neighbor is goal):
-                        return generate_path(current)
+                        return generate_path(neighbor)
 
                     if neighbor not in openSet:
                         heapq.heappush(openSet, neighbor)
@@ -520,7 +520,7 @@ class Step(Node):
             if self.grid.split(self.snake, leftturn, None):
                 grid = self.grid.copy()
                 self.grid.unsplit(None, leftturn, self.snake.head)
-                if not grid.joinaftersplit(self.snake, self.target, float("inf"), firstjoin=True):  # todo firstjoin check
+                if not grid.joinaftersplit(self.snake, self.target, float("inf"), True):
                     return
             else: return
 
@@ -549,19 +549,14 @@ class Step(Node):
         hcomp = compls(self.hScore, other.hScore)
         if hcomp!=0: return hcomp>0
 
-        vcomp = compls(abs(self.snake.head.y-self.target.y), abs(other.snake.head.y-other.target.y))
-        if vcomp != 0: return vcomp > 0
-
         gcomp = compls(self.gScore, other.gScore)
         if gcomp != 0: return gcomp > 0
 
         dcomp = compls(self.depth, other.depth)
         return dcomp > 0
 
-
     def failpoint(self, openSetSize, gScoreSize, checks):
         return checks > self.grid.area * 1.5
-
 
 def compls(a, b):
     if a == b: return 0

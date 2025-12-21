@@ -270,7 +270,7 @@ class App:
             self.agent = PerfectAgent(self.board)
 
             self.timer = 0
-            self.paused = False
+            self.paused = self.speed == 0
 
             if self.skiptype:
                 while len(self.board.snake)<self.skipto:
