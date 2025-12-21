@@ -19,6 +19,9 @@ class BaseAgent:
         dir = head.dirto(closest)
         return dir
 
+    def draw_debug(self, screen, tlcorner, cellsize, w, h):
+        pass
+
     @property
     def w(self):
         return self.game.w

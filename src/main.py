@@ -83,6 +83,7 @@ class App:
         self.resoult = 0
         self.paused = False
         self.autosave = True
+        self.debug = False
 
         self.save(load=True)
 
@@ -109,6 +110,8 @@ class App:
         self.whimg = None
         self.stepimg = self.font.render("steps", False, "white", None).convert_alpha()
         self.lengthimg = self.font.render("length", False, "white", None).convert_alpha()
+        self.debugonimg = self.font.render("Debug: On", False, "white", None).convert_alpha()
+        self.debugoffimg = self.font.render("Debug: Off", False, "white", None).convert_alpha()
 
     def setup(self):
         if self.mouse[1][0]:
@@ -118,38 +121,38 @@ class App:
         pygame.draw.rect(self.screen, "black", pygame.Rect(0, 0, self.screen.width, 100))
 
         boardWprev = self.boardW
-        if pygame.Rect(8, 17, 110, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
+        if pygame.Rect(8, 17, 102, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "boardW"
         if self.selected == "boardW":
             self.boardW = self.inputToNum(self.boardW, 0, 100)
-        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "boardW" else (25, 25, 25), pygame.Rect(8, 17, 110, 32))
+        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "boardW" else (25, 25, 25), pygame.Rect(8, 17, 102, 32))
         widthimg = self.font.render("W: " + str(self.boardW), False, "white", None).convert_alpha()
         self.screen.blit(widthimg, (10, 20))
 
         boardHprev = self.boardH
-        if pygame.Rect(8 + 120, 17, 110, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
+        if pygame.Rect(8 + 108, 17, 98, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "boardH"
         if self.selected == "boardH":
             self.boardH = self.inputToNum(self.boardH, 0, 100)
-        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "boardH" else (25, 25, 25), pygame.Rect(8 + 120, 17, 110, 32))
+        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "boardH" else (25, 25, 25), pygame.Rect(8 + 108, 17, 98, 32))
         heightimg = self.font.render("H: " + str(self.boardH), False, "white", None).convert_alpha()
-        self.screen.blit(heightimg, (10 + 120, 20))
+        self.screen.blit(heightimg, (10 + 108, 20))
 
-        if pygame.Rect(8 + 240, 17, 210, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
+        if pygame.Rect(8 + 212, 17, 206, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "speed"
         if self.selected == "speed":
             self.speed = self.inputToNum(self.speed, 0, 9999)
-        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "speed" else (25, 25, 25), pygame.Rect(8 + 240, 17, 210, 32))
+        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "speed" else (25, 25, 25), pygame.Rect(8 + 212, 17, 206, 32))
         speedimg = self.font.render("Steps: " + str(self.speed) + "/s", False, "white", None).convert_alpha()
-        self.screen.blit(speedimg, (10 + 240, 20))
+        self.screen.blit(speedimg, (10 + 212, 20))
 
-        if pygame.Rect(8 + 460, 17, 210, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
+        if pygame.Rect(8 + 424, 17, 188, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "seed"
         if self.selected == "seed":
-            self.seed = self.inputToNum(self.seed, 0, 999999)
-        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "seed" else (25, 25, 25), pygame.Rect(8 + 460, 17, 212, 32))
-        self.seedimg = self.font.render("Seed: " + (str(self.seed) if self.seed!=0 else "random"), False, "white", None).convert_alpha()
-        self.screen.blit(self.seedimg, (10 + 460, 20))
+            self.seed = self.inputToNum(self.seed, 0, 99999)
+        pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "seed" else (25, 25, 25), pygame.Rect(8 + 424, 17, 188, 32))
+        self.seedimg = self.font.render("Seed: " + (str(self.seed) if self.seed!=0 else "rand"), False, "white", None).convert_alpha()
+        self.screen.blit(self.seedimg, (10 + 424, 20))
 
         if pygame.Rect(8, 57, 236, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "skipto"
@@ -168,9 +171,13 @@ class App:
             self.autosave = not self.autosave
             if not self.autosave:
                 self.save()
-
         pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8 + 460, 57, 212, 32))
         self.screen.blit(self.autosaveonimg if self.autosave else self.autosaveoffimg, (10 + 460, 60))
+
+        if self.keys((pygame.K_b,))[0] or (pygame.Rect(8 + 618, 17, 164, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]):
+            self.debug = not self.debug
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8 + 618, 17, 164, 32))
+        self.screen.blit(self.debugonimg if self.debug else self.debugoffimg, (10 + 618, 20))
 
         c = max(min(800//max(self.boardW, 1), 800//max(self.boardH, 1)), 8)
         w = self.boardW*c
@@ -245,10 +252,9 @@ class App:
         if not ready and self.tail is not None:
             pygame.draw.rect(self.screen, self.bodygradient[0], pygame.Rect(tlcorner.x + self.tail.x * c + narrowmin, tlcorner.y + self.tail.y * c + narrowmin, c-narrowmin*2, c-narrowmin*2), 0, round(c / 2.5))
 
-
         if ready:
-            pygame.draw.rect(self.screen, (40, 40, 40), pygame.Rect(7 + 700, 57, 80, 32))
-        self.screen.blit(self.startimg, (10 + 700, 60))
+            pygame.draw.rect(self.screen, (40, 40, 40), pygame.Rect(8 + 702, 57, 80, 32))
+        self.screen.blit(self.startimg, (10 + 702, 60))
 
         if ready and (self.keys((pygame.K_RETURN,))[0] or (pygame.Rect(7 + 700, 57, 80, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0])):
             self.cellsize = c
@@ -302,7 +308,7 @@ class App:
         stepsimg = self.font.render("Steps: " + str(self.board.steps), False, "white", None).convert_alpha()
         self.screen.blit(stepsimg, (10, 60))
 
-        self.screen.blit(self.whimg, (245, 20))
+        self.screen.blit(self.whimg, (226, 20))
 
         if self.keys((pygame.K_SPACE,))[0] or (pygame.Rect(7 + 460, 57, 130, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]):
             self.paused = not self.paused
@@ -317,10 +323,15 @@ class App:
             pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 600, 57, 80, 32))
             self.screen.blit(self.nextimg, (10 + 600, 60))
 
-        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(7 + 700, 57, 80, 32))
-        self.screen.blit(self.stopimg, (10 + 700, 60))
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8 + 702, 57, 80, 32))
+        self.screen.blit(self.stopimg, (10 + 702, 60))
 
-        self.screen.blit(self.seedimg, (10 + 460, 20))
+        self.screen.blit(self.seedimg, (10 + 424, 20))
+
+        if self.keys((pygame.K_b,))[0] or (pygame.Rect(8 + 618, 17, 164, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0] and not self.mouse[0][0]):
+            self.debug = not self.debug
+        pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8 + 618, 17, 164, 32))
+        self.screen.blit(self.debugonimg if self.debug else self.debugoffimg, (10 + 618, 20))
 
         self.drawboard()
 
@@ -371,6 +382,9 @@ class App:
         if self.board.food.x != -1:
             self.draw_food(pygame.Rect(self.tlcorner.x + self.board.food.x * self.cellsize, self.tlcorner.y + self.board.food.y * self.cellsize, self.cellsize, self.cellsize))
 
+        if self.debug:
+            self.agent.draw_debug(self.screen, self.tlcorner, self.cellsize, self.boardW, self.boardH)
+
     def draw_face(self, rect, narrow, dir):
         surf = pygame.Surface(rect.size).convert_alpha()
         surf.fill((0, 0, 0, 0))
@@ -378,8 +392,8 @@ class App:
         h = rect.h-narrow*2
         center = pygame.Vector2(rect.w//2, rect.h//2)
 
-        pygame.draw.rect(surf, self.headcolor, pygame.Rect(round(center.x-w*0.16), round(center.y-h*0.48), round(w*0.6), round(h*1)), 0, round(w*0.28))
-        pygame.draw.rect(surf, self.headcolor, pygame.Rect(round(w*0.07), round(center.y-h*0.4), round(w*1.05), round(h*0.8)), 0, round(w*0.4))
+        pygame.draw.rect(surf, self.headcolor, pygame.Rect(round(center.x-w*0.24), round(center.y-h*0.5), round(w*0.7), round(h*1)), 0, round(w*0.34))
+        pygame.draw.rect(surf, self.headcolor, pygame.Rect(round(w*0.02), round(center.y-h*0.4), round(w*1.1), round(h*0.8)), 0, round(w*0.4))
 
         eye1 = pygame.Vector2(round(w*0.1), round(h*0.2))
         eye2 = pygame.Vector2(round(w*0.1), round(-h*0.2))
@@ -387,18 +401,18 @@ class App:
         pygame.draw.circle(surf, self.facecolors[0], eye1 + center, round(w*0.16))
         pygame.draw.circle(surf, self.facecolors[0], eye2 + center, round(w*0.16))
 
-        innereye1 = pygame.Vector2(round(w * 0.012), round(h * 0.19))
-        innereye2 = pygame.Vector2(round(w * 0.012), round(-h * 0.19))
+        innereye1 = pygame.Vector2(round(w * 0.022), round(h * 0.19))
+        innereye2 = pygame.Vector2(round(w * 0.022), round(-h * 0.19))
 
         if round(w * 0.1)<round(w*0.16):
             pygame.draw.circle(surf, self.facecolors[1], innereye1 + center, round(w * 0.1))
             pygame.draw.circle(surf, self.facecolors[1], innereye2 + center, round(w * 0.1))
 
-        nose1 = pygame.Vector2(round(-w * 0.30), round(h * 0.12))
-        nose2 = pygame.Vector2(round(-w * 0.30), round(-h * 0.12))
+        nose1 = pygame.Vector2(round(-w * 0.35), round(h * 0.12))
+        nose2 = pygame.Vector2(round(-w * 0.35), round(-h * 0.12))
 
-        pygame.draw.circle(surf, self.facecolors[2], nose1 + center, int(w * 0.09))
-        pygame.draw.circle(surf, self.facecolors[2], nose2 + center, int(w * 0.09))
+        pygame.draw.circle(surf, self.facecolors[2], nose1 + center, int(w * 0.08))
+        pygame.draw.circle(surf, self.facecolors[2], nose2 + center, int(w * 0.08))
 
         self.screen.blit(pygame.transform.rotate(surf, Cell.dirtonum(dir)*-90), rect)
 
@@ -417,7 +431,7 @@ class App:
         return c1.lerp(c2, t)
 
     def save(self, load=False):
-        settings_attars = ("autosave", "speed", "skipto", "skiptype", "seed", "boardW", "boardH", "head", "tail",)
+        settings_attars = ("autosave", "speed", "skipto", "skiptype", "seed", "boardW", "boardH", "head", "tail", "debug")
 
         save = os.path.join("..", 'snake_settings.save')
 

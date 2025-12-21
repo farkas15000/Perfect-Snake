@@ -1,3 +1,4 @@
+import pygame
 from collections import deque
 import heapq
 
@@ -15,8 +16,31 @@ class PerfectAgent(BaseAgent):
         self.steps = []
         self.iter = 0
 
+        self.onpath = True
+        self.onpathcheck(self.snake)
+
     def getDirection(self):
         self.grid.reroutefood(self.food)
+
+        if not self.onpath:
+            dir = self.grid.nextdir(self.snake.head)
+            if self.snake.nexthead(dir).toString() in self.snake.cells:
+                dir = self.snake.head.dirto(self.grid.at(self.snake.head).prev)
+                if self.snake.nexthead(dir).toString() in self.snake.cells:
+                    dir = Cell.reversedir(self.grid.nextdir(self.snake.head))
+                    if self.snake.nexthead(dir).toString() in self.snake.cells:
+                        for n in self.snake.head.neighbors():
+                            dir = self.snake.head.dirto(n)
+                            if self.snake.nexthead(dir).toString() not in self.snake.cells:
+                                break
+
+            snake = self.snake.copy()
+            snake.applydir(dir)
+            if snake.head == self.food:
+                snake.reatachtail()
+
+            self.onpathcheck(snake)
+            return dir
 
         if not self.falback and self.iter == len(self.steps):
             origin = Step(self.snake, self.grid, None, False, self.food)
@@ -43,6 +67,31 @@ class PerfectAgent(BaseAgent):
 
         return dir
 
+    def onpathcheck(self, snake):
+        self.onpath = True
+        start = self.grid.at(snake.head)
+        for i in range(len(snake) - 1):
+            start = self.grid.at(start.prev)
+            if start.pos.toString() not in snake.cells:
+                self.onpath = False
+                break
+
+        if not self.onpath:
+            self.onpath = True
+            start = self.grid.at(snake.head)
+            for i in range(len(snake) - 1):
+                start = self.grid.at(start.next)
+                if start.pos.toString() not in snake.cells:
+                    self.onpath = False
+                    break
+            if self.onpath:
+                self.grid.reversePath()
+
+    def draw_debug(self, screen, tlcorner, cellsize, w, h):
+        for x in range(w):
+            for y in range(h):
+                self.grid.cells[x][y].draw(screen, pygame.Rect(tlcorner.x + x * cellsize, tlcorner.y + y * cellsize, cellsize, cellsize))
+
 class Block:
     def __init__(self, x, y):
         self.pos: Cell = Cell(x, y)
@@ -59,6 +108,11 @@ class Block:
     def set(self, prev: Cell, next: Cell):
         self.prev = prev
         self.next = next
+
+    def flip(self):
+        temp = self.next
+        self.next = self.prev
+        self.prev = temp
 
     def __str__(self):
         l = Cell.numtodir(0)
@@ -89,6 +143,29 @@ class Block:
             if n == r: return "↘"
 
         return " "
+
+    COLOR = (163, 73, 164, 255)
+    def draw(self, screen, rect):
+        w, h = round(rect.w*(1/10)), round(rect.h*(1/10))
+        center = pygame.Rect(0, 0, w, h)
+        center.center = rect.center
+
+        if self.prev is not None:
+            prev = center.copy()
+            prev.move_ip(*(self.pos.dirto(self.prev)*(rect.w/2.5)))
+            pygame.draw.rect(screen, Block.COLOR, prev.union(center))
+
+        if self.next is not None:
+            next = center.copy()
+            nextdirrot = Cell.dirtonum(self.pos.dirto(self.next))*90
+            next.move_ip(*(self.pos.dirto(self.next)*(rect.w/4)))
+            pygame.draw.rect(screen, Block.COLOR, next.union(center))
+
+            center = pygame.Vector2(rect.center)
+            arrowhead = pygame.Vector2(-round(rect.w*0.45), 0).rotate(nextdirrot)+center
+            arrowleft = pygame.Vector2(-round(rect.w*0.245), round(rect.h*0.20)).rotate(nextdirrot)+center
+            arrowright = pygame.Vector2(-round(rect.w*0.245), -round(rect.h*0.20)).rotate(nextdirrot)+center
+            pygame.draw.polygon(screen, Block.COLOR, (arrowhead, arrowleft, arrowright))
 
 class Grid:
     def __init__(self, w, h):
@@ -130,6 +207,7 @@ class Grid:
 
         if self.odd and 1:
             self.cells[1][1].next = self.cells[1][0].pos
+            self.cells[1][0].prev = self.cells[1][1].pos
             self.cells[0][0].prev = self.cells[0][1].pos
 
         return self
@@ -142,6 +220,11 @@ class Grid:
         grid.cells = [[self.cells[x][y].copy() for y in range(self.h)] for x in range(self.w)]
 
         return grid
+
+    def reversePath(self):
+        for x in range(self.w):
+            for y in range(self.h):
+                self.cells[x][y].flip()
 
     def at(self, cell: Cell):
         return self.cells[cell.x][cell.y]

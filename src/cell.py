@@ -24,6 +24,15 @@ class Cell:
         self.y -= other.y
         return self
 
+    def __mul__(self, other):
+        if hasattr(other, "x") and hasattr(other, "y"):
+            self.x *= other.x
+            self.y *= other.y
+        else:
+            self.x *= other
+            self.y *= other
+        return self
+
     def copy(self):
         return Cell(self.x, self.y)
 
