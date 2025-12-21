@@ -368,8 +368,8 @@ class App:
         headrect = pygame.Rect(self.tlcorner.x + self.board.snake.head.x * self.cellsize, self.tlcorner.y + self.board.snake.head.y * self.cellsize, self.cellsize, self.cellsize)
         self.draw_face(headrect, narrowhead, self.board.lastdir)
 
-        foodrect = pygame.Rect(self.tlcorner.x + self.board.food.x * self.cellsize, self.tlcorner.y + self.board.food.y * self.cellsize, self.cellsize, self.cellsize)
-        self.draw_food(foodrect)
+        if self.board.food.x != -1:
+            self.draw_food(pygame.Rect(self.tlcorner.x + self.board.food.x * self.cellsize, self.tlcorner.y + self.board.food.y * self.cellsize, self.cellsize, self.cellsize))
 
     def draw_face(self, rect, narrow, dir):
         surf = pygame.Surface(rect.size).convert_alpha()
@@ -417,7 +417,7 @@ class App:
         return c1.lerp(c2, t)
 
     def save(self, load=False):
-        settings_attars = ("autosave", "speed", "skipto", "seed", "boardW", "boardH", "head", "tail",)
+        settings_attars = ("autosave", "speed", "skipto", "skiptype", "seed", "boardW", "boardH", "head", "tail",)
 
         save = os.path.join("..", 'snake_settings.save')
 

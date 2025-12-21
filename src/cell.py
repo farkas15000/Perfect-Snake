@@ -34,7 +34,7 @@ class Cell:
         return self.x == x and self.y == y
 
     def __iter__(self):
-        return self.x, self.y
+        return (self.x, self.y).__iter__()
 
     def distManhattan(self, other):
         return abs(self.x-other.x)+abs(self.y-other.y)
