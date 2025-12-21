@@ -20,7 +20,11 @@ class PerfectAgent(BaseAgent):
         self.onpathcheck(self.snake)
 
     def getDirection(self):
-        self.grid.reroutefood(self.food)
+        self.grid.reroutefood(self.snake, self.food)
+
+        if len(self.snake)==self.area-1 and self.snake.head.distManhattan(self.food) == 1:
+            dir = self.snake.head.dirto(self.food)
+            return dir
 
         if not self.onpath:
             dir = self.grid.nextdir(self.snake.head)
@@ -175,7 +179,7 @@ class Grid:
         self.odd = w % 2 == 1 and h % 2 == 1
 
         self.illegals = set()
-        self.cells = None
+        self.cells: list[list[Block]]|None = None
 
     def generatePath(self):
         if self.odd:
@@ -232,16 +236,51 @@ class Grid:
     def nextdir(self, cell: Cell):
         return cell.dirto(self.at(cell).next)
 
-    def reroutefood(self, food: Cell):
+
+    def reroutefood(self, snake, food: Cell):
         if not self.odd: return
 
-        foodblock = self.at(food)
-        foodprev = self.at(foodblock.prev)
-        prevnext = self.at(foodprev.next)
+        foodblock: Block = self.at(food)
 
-        if foodprev != prevnext:
-            foodprev.next = foodblock.pos
-            self.at(foodblock.next).prev = foodblock.pos
+        if self.at(foodblock.prev).next==food: return
+
+        shortest = None
+        dist = self.area*2
+
+        corners = (Cell(-1, -1), Cell(1, -1), Cell(-1, 1), Cell(1, 1))
+        for c in corners:
+            c += food
+            if 0 <= c.x < self.w and 0 <= c.y < self.h:
+                corner: Block = self.at(c)
+                if corner.prev.distManhattan(food)==1 and corner.next.distManhattan(food)==1:
+                    prevblock: Block = self.at(corner.prev)
+                    prevblock.next = foodblock.pos
+                    nextblock: Block = self.at(corner.next)
+                    nextblock.prev = foodblock.pos
+                    foodblock.set(prevblock.pos, nextblock.pos)
+
+                    d = self.fooddistance(snake.head, food)
+                    if d < dist:
+                        dist = d
+                        shortest = corner
+
+                    prevblock.next = corner.pos
+                    nextblock.prev = corner.pos
+
+        if shortest is None:
+            raise Exception("Couldn't reroute food")
+
+        prevblock: Block = self.at(shortest.prev)
+        prevblock.next = foodblock.pos
+        nextblock: Block = self.at(shortest.next)
+        nextblock.prev = foodblock.pos
+        foodblock.set(prevblock.pos, nextblock.pos)
+
+        self.illegals = set()
+        self.illegals.add(food.toString())
+        self.illegals.add(shortest.pos.toString())
+        self.illegals.add(prevblock.pos.toString())
+        self.illegals.add(nextblock.pos.toString())
 
     def fooddistance(self, start: Cell, food: Cell):
         dist = 0
