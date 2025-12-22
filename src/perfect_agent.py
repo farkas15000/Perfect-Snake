@@ -12,7 +12,7 @@ class PerfectAgent(BaseAgent):
         super().__init__(board)
         self.grid = Grid(self.w, self.h).generatePath()
 
-        self.falback = False
+        self.fallback = False
         self.steps = []
         self.iter = 0
 
@@ -46,19 +46,19 @@ class PerfectAgent(BaseAgent):
             self.onpathcheck(snake)
             return dir
 
-        if not self.falback and self.iter == len(self.steps):
+        if not self.fallback and self.iter == len(self.steps):
             origin = Step(self.snake, self.grid, None, False, self.food)
             self.steps = Step.A_star(origin, None, True, 0, False)
 
             if self.steps is None:
-                self.falback = True
+                self.fallback = True
                 self.steps = []
             else:
                 self.grid = Step.finished.grid
 
             self.iter = 0
 
-        if not self.falback:
+        if not self.fallback:
             dir = self.steps[self.iter].dir
             self.iter += 1
 
@@ -67,7 +67,7 @@ class PerfectAgent(BaseAgent):
             dir = self.grid.nextdir(self.snake.head)
 
         if self.snake.nexthead(dir) == self.food:
-            self.falback = False
+            self.fallback = False
 
         return dir
 
@@ -445,7 +445,7 @@ class Grid:
             for x in range(self.w):
                 cell = " "
                 if food.eq(x, y): cell = "O"
-                if f"({x}, {y})" in snake.cells: cell = "▮"
+                if f"({x}, {y})" in snake.cells: cell = "#"
                 if snake.head.eq(x, y): cell = "@"
                 if snake.tail.eq(x, y): cell = "X"
 
@@ -536,13 +536,14 @@ class Node:
         return None
 
 class Step(Node):
-    def __init__(self, snake, grid, dir, move, target):
+    def __init__(self, snake, grid, dir, move, target, priority=0):
         super().__init__()
 
         self.dir: Cell = dir
         self.snake: Snake = snake
         self.grid: Grid = grid
         self.target: Cell = target
+        self.priority = priority
 
         if move:
             self.snake.applydir(dir)
@@ -566,11 +567,11 @@ class Step(Node):
         dir = grid.nextdir(self.snake.head)
 
         k = self
-        if k not in seen or 1:
+        if 1 or k not in seen:
             snake = self.snake.copy()
             snake.applydir(dir)
 
-            self.children[Step(snake, grid, dir, False, self.target)] = 1
+            self.children[Step(snake, grid, dir, False, self.target, int(leftturn is None))] = 1
 
     def neighbors(self, seen):
         if self.children: return self.children
@@ -587,6 +588,9 @@ class Step(Node):
     def __lt__(self, other):
         hcomp = compls(self.hScore, other.hScore)
         if hcomp!=0: return hcomp>0
+
+        pcomp = compls(other.priority, self.priority)
+        if pcomp != 0: return pcomp > 0
 
         gcomp = compls(self.gScore, other.gScore)
         if gcomp != 0: return gcomp > 0
