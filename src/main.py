@@ -1,6 +1,8 @@
 import json
 import os
 import platform
+import random
+
 import pygame
 import time
 
@@ -266,7 +268,11 @@ class App:
             else:
                 snake = Snake(list(Cell(x, int(self.head.y)) for x in range(int(self.tail.x), int(self.head.x) + (1 if self.tail.x <= self.head.x else -1), 1 if self.tail.x <= self.head.x else -1)), None)
 
-            self.board = Board(self.boardW, self.boardH, snake, self.seed)
+            random.seed()
+            seed = self.seed if self.seed != 0 else random.randint(1, 99999)
+            self.seedimg = self.font.render("Seed: " + str(seed), False, "white", None).convert_alpha()
+
+            self.board = Board(self.boardW, self.boardH, snake, seed)
             self.agent = PerfectAgent(self.board)
 
             self.timer = 0
