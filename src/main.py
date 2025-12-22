@@ -2,13 +2,11 @@ import json
 import os
 import platform
 import random
-
-import pygame
 import time
 
-from board import Board
-from cell import Cell
-from snake import Snake
+import pygame
+
+from board import Board, Cell, Snake
 from baseagent import BaseAgent
 from perfect_agent import PerfectAgent
 
@@ -439,7 +437,7 @@ class App:
     def save(self, load=False):
         settings_attars = ("autosave", "speed", "skipto", "skiptype", "seed", "boardW", "boardH", "head", "tail", "debug")
 
-        save = os.path.join("..", 'snake_settings.save')
+        save = os.path.join('snake_settings.save')
 
         if load:
             try:
@@ -635,6 +633,7 @@ class App:
             if frame % 8 == 0 and dt:
                 frame = 0
                 self.window.title = (
+                    f"Perfect Snake    "
                     f"FPS: {int(1 / dt):>4}, {round(self.clock.get_fps(), 1)} "
                     f"W:{self.window.size[0]} {self.window.size[1]} "
                 )

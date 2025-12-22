@@ -1,6 +1,4 @@
-import pygame
-from cell import Cell
-from snake import Snake
+from collections import deque
 import random
 
 class Board:
@@ -60,3 +58,174 @@ class Board:
                     if i == index:
                         self.food = pos
                         return
+
+class Cell:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def toString(self):
+        return f"({self.x}, {self.y})"
+
+    def __repr__(self):
+        return self.toString()
+
+    def toTouple(self):
+        return self.x, self.y
+
+    def __add__(self, other):
+        self.x += other.x
+        self.y += other.y
+        return self
+
+    def __sub__(self, other):
+        self.x -= other.x
+        self.y -= other.y
+        return self
+
+    def __mul__(self, other):
+        if hasattr(other, "x") and hasattr(other, "y"):
+            self.x *= other.x
+            self.y *= other.y
+        else:
+            self.x *= other
+            self.y *= other
+        return self
+
+    def copy(self):
+        return Cell(self.x, self.y)
+
+    def __eq__(self, other):
+        return self.x==other.x and self.y==other.y
+
+    def eq(self, x, y):
+        return self.x == x and self.y == y
+
+    def __iter__(self):
+        return (self.x, self.y).__iter__()
+
+    def distManhattan(self, other):
+        return abs(self.x-other.x)+abs(self.y-other.y)
+
+    def distSquared(self, other):
+        return (self.x-other.x)**2+(self.y-other.y)**2
+
+    def lengthSquared(self):
+        return self.x**2+self.y**2
+
+    def dirto(self, other):
+        if  abs(other.x-self.x) > abs(other.y-self.y):
+            return Cell(min(max(other.x-self.x, -1), 1), 0)
+        else:
+            return Cell(0, min(max(other.y - self.y, -1), 1))
+
+    def isdir(self):
+        return abs(self.x)+abs(self.y)==1
+
+
+    def converttodir(self):
+        self.x = min(max(self.x, -1), 1)
+        self.y = min(max(self.y, -1), 1)
+
+    def neighbors(self):
+        return tuple(self.copy()+Cell.numtodir(d) for d in range(4))
+
+    @staticmethod
+    def dirtonum(dir):
+        if dir.x == -1: return 0
+        if dir.y == -1: return 1
+        if dir.x == 1: return 2
+        if dir.y == 1: return 3
+        return 4
+
+    @staticmethod
+    def dirtostr(dir):
+        return str(Cell.dirtonum(dir))
+
+    @staticmethod
+    def numtodir(num):
+        return [Cell(-1, 0), Cell(0, -1), Cell(1, 0), Cell(0, 1)][num]
+
+    @staticmethod
+    def dirtokeycode(dir):
+        return ["left", "up", "right", "down"][Cell.dirtonum(dir)]
+
+    @staticmethod
+    def reversedir(dir):
+        return Cell.numtodir((Cell.dirtonum(dir)+2)%4)
+
+    @staticmethod
+    def leftturn(dir):
+        return Cell.numtodir((Cell.dirtonum(dir) + 3) % 4)
+
+    @staticmethod
+    def rightturn(dir):
+        return Cell.numtodir((Cell.dirtonum(dir) + 1) % 4)
+
+class Snake:
+    w = 0
+    h = 0
+
+    EMPTY = 0
+    BODY = 1
+    FOOD = 2
+
+    def copy(self):
+        return Snake(self.snake, self.losttail)
+
+    def __init__(self, snake, losttail=None):
+        self.snake = deque(snake)
+        self.cells = set(cell.toString() for cell in snake)
+        self.losttail = losttail
+
+        self._head: Cell = self.snake.pop()
+        self.snake.append(self._head)
+
+        self._tail: Cell = self.snake.popleft()
+        self.snake.appendleft(self._tail)
+
+    @property
+    def head(self):
+        return self._head
+
+    @property
+    def tail(self):
+        return self._tail
+
+    def nexthead(self, dir: Cell):
+        return  self.head.copy()+dir
+
+    def addHead(self, head:Cell):
+        self._head = head
+        self.snake.append(head)
+        self.cells.add(head.toString())
+
+    def removeTail(self):
+        tail = self.snake.popleft()
+        self.losttail = tail
+        self.cells.remove(tail.toString())
+
+        self._tail = self.snake.popleft()
+        self.snake.appendleft(self._tail)
+
+    def applydir(self, dir: Cell):
+        self.removeTail()
+        self.addHead(self.nexthead(dir))
+
+    def reatachtail(self):
+        self._tail = self.losttail
+        self.snake.appendleft(self.losttail)
+        self.cells.add(self.losttail.toString())
+
+    def lookat(self, cell):
+        if not(0 <= cell.x < Snake.w and 0 <= cell.y < Snake.h):
+            return Snake.BODY
+
+        t = self.tail
+        if not cell==t and cell.toString() in self.cells:
+            return Snake.BODY
+
+        return Snake.EMPTY
+
+    def __len__(self):
+        return len(self.snake)

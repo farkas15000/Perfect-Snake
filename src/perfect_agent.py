@@ -1,10 +1,9 @@
-import pygame
 from collections import deque
 import heapq
 
-from board import Board
-from snake import Snake
-from cell import Cell
+import pygame
+
+from board import Board, Cell, Snake
 from baseagent import BaseAgent
 
 class PerfectAgent(BaseAgent):

@@ -1,5 +1,5 @@
 .idea
-snake_settings.save
+src/snake_settings.save
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

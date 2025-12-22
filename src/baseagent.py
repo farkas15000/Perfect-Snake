@@ -1,6 +1,4 @@
-from board import Board
-from snake import Snake
-from cell import Cell
+from board import Board, Cell, Snake
 
 class BaseAgent:
     def __init__(self, board:Board):
@@ -8,8 +6,9 @@ class BaseAgent:
 
     def getDirection(self):
 
+        # simple greedy pathfinding
         closest = self.food
-        head = self.snake.head()
+        head = self.snake.head
         distance = self.w+self.h
         for c in head.neighbors():
             if self.snake.lookat(c) != Snake.BODY and c.distManhattan(self.food) < distance:
