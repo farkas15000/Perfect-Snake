@@ -46,6 +46,32 @@ class PerfectAgent(BaseAgent):
             return dir
 
         if not self.fallback and self.iter == len(self.steps):
+            headorigin = HeadStep(self.snake, self.grid.copy(), None, False, self.food, 0)
+            self.steps = HeadStep.A_star(headorigin, None, True, 0, False)
+            fin1 = HeadStep.finished
+
+            if self.steps is None:
+                self.steps = []
+
+            else:
+                headorigin2 = HeadStep(self.snake, HeadStep.finished.grid.copy(), None, False, self.food, 0)
+                fin2steps = HeadStep.A_star(headorigin2, None, True, 0, False)
+                if fin2steps is not None:
+                    self.steps = fin2steps
+
+                finished: HeadStep = HeadStep.finished if HeadStep.finished is not None else fin1
+                finished.snake.reatachtail()
+
+                repaired = finished.grid.repair(finished.snake)
+
+                if not repaired:
+                    self.steps = []
+                else:
+                    self.grid = finished.grid
+
+            self.iter = 0
+
+        if not self.fallback and self.iter == len(self.steps):
             origin = Step(self.snake, self.grid, None, False, self.food)
             self.steps = Step.A_star(origin, None, True, 0, False)
 
@@ -67,6 +93,29 @@ class PerfectAgent(BaseAgent):
 
         if self.snake.nexthead(dir) == self.food:
             self.fallback = False
+
+        if self.fallback and (self.snake.head.x+self.snake.head.y)%2 == (self.food.x+self.food.y)%2:
+            snake = self.snake.copy()
+
+            hit = False
+            while True:
+                closest = self.food
+                head = snake.head
+                distance = self.w + self.h
+                for c in head.neighbors():
+                    if c.distManhattan(self.food) < distance:
+                        distance = c.distManhattan(self.food)
+                        closest = c
+
+                if closest == self.food:
+                    break
+                if snake.lookat(closest) == Snake.BODY:
+                    hit = True
+                    break
+
+                snake.applydir(head.dirto(closest))
+
+            self.fallback = hit
 
         return dir
 
@@ -436,6 +485,92 @@ class Grid:
                     if not self.joinaftersplit(snake, food, basedist, False):
                         self.unsplit(None, not(leftdist < rightdist), snake.head)
 
+    def repair(self, snake: Snake):
+        baseroute = set()
+        gates = list()
+
+        gate1 = self.at(self.at(snake.head).next)
+        snaketailnext = self.at(snake.tail).next
+        i = self.area+2
+        while True:
+            if i <= 0:
+                return False
+            i -= 1
+            baseroute.add(gate1.pos.toString())
+            facing = gate1.pos.dirto(gate1.next)
+            for leftturn in (False, True):
+                turning = Cell.leftturn(facing) if leftturn else Cell.rightturn(facing)
+                gate2pos = gate1.pos.copy() + turning
+
+                if 0 <= gate2pos.x < self.w and 0 <= gate2pos.y < self.h:
+                    gate2 = self.at(gate2pos)
+                    illegal = False
+
+                    if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
+                            (gate1.next.toString() in snake.cells and gate1.next != snake.tail)):
+                        illegal = True
+
+                    if not illegal and (
+                            gate1.pos.toString() in self.illegals or gate2.pos.toString() in self.illegals or
+                            gate2.prev.toString() in self.illegals or gate1.next.toString() in self.illegals):
+                        illegal = True
+
+                    if not illegal and gate2.pos.dirto(gate2.prev) == facing:
+                        gates.append((gate1, leftturn))
+
+            if gate1.pos == snaketailnext: break
+            gate1 = self.at(gate1.next)
+
+        pathlength = len(baseroute) + len(snake) - 2
+
+        while pathlength < self.area - self.odd and gates:
+            gate1, turn = gates.pop()
+            facing = gate1.pos.dirto(gate1.next)
+            turning = Cell.leftturn(facing) if turn else Cell.rightturn(facing)
+            gate2pos = gate1.pos.copy() + turning
+
+            if gate2pos.toString() not in baseroute:
+                gate2 = self.at(gate2pos)
+                gate3 = self.at((cell := gate1.pos.copy() + facing))
+                gate4 = self.at(cell.copy() + turning)
+                end = gate4
+
+                gate1.next = gate2.pos
+                gate2.prev = gate1.pos
+
+                gate3.prev = gate4.pos
+                gate4.next = gate3.pos
+
+                while True:
+                    baseroute.add(gate1.pos.toString())
+                    facing = gate1.pos.dirto(gate1.next)
+                    for leftturn in (False, True):
+                        turning = Cell.leftturn(facing) if leftturn else Cell.rightturn(facing)
+                        gate2pos = gate1.pos.copy() + turning
+
+                        if 0 <= gate2pos.x < self.w and 0 <= gate2pos.y < self.h:
+                            gate2 = self.at(gate2pos)
+                            illegal = False
+
+                            if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
+                                    (gate1.next.toString() in snake.cells and gate1.next != snake.tail)):
+                                illegal = True
+
+                            if not illegal and (
+                                    gate1.pos.toString() in self.illegals or gate2.pos.toString() in self.illegals or
+                                    gate2.prev.toString() in self.illegals or gate1.next.toString() in self.illegals):
+                                illegal = True
+
+                            if not illegal and gate2.pos.dirto(gate2.prev) == facing:
+                                gates.append((gate1, leftturn))
+
+                    if gate1.pos == end.pos: break
+                    gate1 = self.at(gate1.next)
+
+                pathlength = len(baseroute) + len(snake) - 2
+
+        return pathlength == self.area - self.odd
+
     def print(self, snake: Snake, food: Cell):
         print("/"+"--"*self.w+"\\")
 
@@ -456,6 +591,7 @@ class Grid:
 
 class Node:
     finished = None
+    best = None
 
     def __init__(self):
         self.satisfied = False
@@ -508,6 +644,7 @@ class Node:
         while openSet:
             checks += 1
             current: cls = heapq.heappop(openSet)
+            cls.best = current
 
             if current.failpoint(len(openSet), len(gScore), checks): break
 
@@ -590,6 +727,95 @@ class Step(Node):
 
         pcomp = compls(other.priority, self.priority)
         if pcomp != 0: return pcomp > 0
+
+        gcomp = compls(self.gScore, other.gScore)
+        if gcomp != 0: return gcomp > 0
+
+        dcomp = compls(self.depth, other.depth)
+        return dcomp > 0
+
+    def failpoint(self, openSetSize, gScoreSize, checks):
+        return checks > self.grid.area * 1.5
+
+class HeadStep(Node):
+    def __init__(self, snake, grid, dir, move, target, wallhugs):
+        super().__init__()
+
+        self.snake: Snake = snake
+        self.dir: Cell = dir if dir is not None else self.snake.direction
+        self.grid: Grid = grid
+        self.target: Cell = target
+        self.wallhugs = wallhugs
+
+        if move:
+            self.snake.applydir(dir)
+
+        self.hScore = self.target.distManhattan(self.snake.head)
+
+        if self.hScore == 0:
+            self.satisfied = True
+
+    def neighbor(self, leftturn, seen):
+        dir = self.dir
+        if leftturn is not None:
+            if leftturn:
+                dir = Cell.leftturn(dir)
+            if not leftturn:
+                dir = Cell.rightturn(dir)
+
+
+        griddir = self.grid.nextdir(self.snake.head)
+
+        if griddir != dir:
+            turnnum =  (Cell.dirtonum(dir) - Cell.dirtonum(griddir))%4
+
+            if turnnum == 1:
+                if self.grid.split(self.snake, False, None):
+                    grid = self.grid.copy()
+                    self.grid.unsplit(None, False, self.snake.head)
+                else: return
+
+            elif turnnum == 3:
+                if self.grid.split(self.snake, True, None):
+                    grid = self.grid.copy()
+                    self.grid.unsplit(None, True, self.snake.head)
+                else: return
+            else:
+                return
+        else:
+            grid = self.grid
+
+
+        k = str(self.snake.nexthead(dir)) + str(dir)
+        if self.snake.lookat(self.snake.nexthead(dir)) != Snake.BODY and k not in seen:
+            snake = self.snake.copy()
+            snake.applydir(dir)
+
+            wallhugs = 0
+            for cell in snake.head.neighbors():
+                if not (cell==self.snake.head or cell==snake.tail) and cell.toString() in snake.cells:
+                    wallhugs += 1
+
+            self.children[HeadStep(snake, grid, dir, False, self.target, wallhugs)] = 1
+
+    def neighbors(self, seen):
+        if self.children: return self.children
+
+        self.neighbor(None, seen)
+        self.neighbor(True, seen)
+        self.neighbor(False, seen)
+
+        return self.children.keys()
+
+    def key(self):
+        return str(self.snake.head) + str(self.dir)
+
+    def __lt__(self, other):
+        hcomp = compls(self.hScore, other.hScore)
+        if hcomp!=0: return hcomp>0
+
+        wcomp = compls(other.wallhugs, self.wallhugs)
+        if wcomp != 0: return wcomp > 0
 
         gcomp = compls(self.gScore, other.gScore)
         if gcomp != 0: return gcomp > 0

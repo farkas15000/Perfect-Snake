@@ -184,6 +184,9 @@ class Snake:
         self._tail: Cell = self.snake.popleft()
         self.snake.appendleft(self._tail)
 
+        self._dir = None
+        self.direction
+
     @property
     def head(self):
         return self._head
@@ -195,7 +198,22 @@ class Snake:
     def nexthead(self, dir: Cell):
         return  self.head.copy()+dir
 
+    @property
+    def direction(self):
+        if self._dir is None:
+            head = self.snake.pop()
+            neck = self.snake.pop()
+            dir = neck.dirto(head)
+            self.snake.append(neck)
+            self.snake.append(head)
+            self._dir = dir
+
+        return self._dir
+
     def addHead(self, head:Cell):
+        neck = self._head
+        self._dir = neck.dirto(head)
+
         self._head = head
         self.snake.append(head)
         self.cells.add(head.toString())
@@ -229,3 +247,21 @@ class Snake:
 
     def __len__(self):
         return len(self.snake)
+
+    def print(self, food: Cell):
+        print("/"+"--"*self.w+"\\")
+
+        for y in range(self.h):
+            row = "|"
+            for x in range(self.w):
+                cell = " "
+                if food.eq(x, y): cell = "O"
+                if f"({x}, {y})" in self.cells: cell = "#"
+                if self.head.eq(x, y): cell = "@"
+                if self.tail.eq(x, y): cell = "X"
+
+                row += " "+cell
+            row += "|"
+            print(row)
+
+        print("\\" + "--" * self.w + "/")
