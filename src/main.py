@@ -99,6 +99,7 @@ class App:
         if self.tail is not None:
             self.tail = Cell(*self.tail)
 
+        self.backgroundimg = None
         self.seedimg = None
         self.startimg = self.font.render("Start", False, "white", None).convert_alpha()
         self.stopimg = self.font.render("Stop", False, "white", None).convert_alpha()
@@ -208,9 +209,14 @@ class App:
 
         pygame.draw.rect(self.screen, (40, 40, 40, 255), pygame.Rect(*tlcorner, w, h), width=0)
 
-        for x in range(self.boardW):
-            for y in range(self.boardH):
-                pygame.draw.rect(self.screen, self.boardcolor[(x + y) % 2], pygame.Rect(tlcorner.x + x * c, tlcorner.y + y * c, c, c), 0)
+        if not self.backgroundimg or boardWprev!=self.boardW or boardHprev!=self.boardH:
+            self.backgroundimg = pygame.Surface((self.boardW * c, self.boardH * c))
+
+            for x in range(self.boardW):
+                for y in range(self.boardH):
+                    pygame.draw.rect(self.backgroundimg, self.boardcolor[(x + y) % 2], pygame.Rect(x * c, y * c, c, c), 0)
+
+        self.screen.blit(self.backgroundimg, tlcorner)
 
         narrowhead = round(c*(1/8))
         narrowface = round(c*(1/14))
@@ -366,9 +372,7 @@ class App:
             App.state = "setup"
 
     def drawboard(self):
-        for x in range(self.boardW):
-            for y in range(self.boardH):
-                pygame.draw.rect(self.screen, self.boardcolor[(x + y) % 2], pygame.Rect(self.tlcorner.x + x * self.cellsize, self.tlcorner.y + y * self.cellsize, self.cellsize, self.cellsize), 0)
+        self.screen.blit(self.backgroundimg, self.tlcorner)
 
         l = len(self.board.snake.snake)-1
         i = 0
