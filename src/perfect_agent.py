@@ -488,8 +488,8 @@ class Grid:
     def joinaftersplit(self, split, snake: Snake, food: Cell, basedist: int, firstjoin=False):
         self.addhalfrule(split)
 
-        gates = []
-        gateturns = []
+        shortestgate = None
+        shortestturn = None
 
         gate1 = self.at(self.at(snake.head).next)
         snaketailnext = self.at(snake.tail).next
@@ -514,52 +514,44 @@ class Grid:
                             illegal = True
 
                         if not illegal and gate2.pos.dirto(gate2.prev) == facing:
-                            gates.append(gate1)
-                            gateturns.append(leftturn)
+                            self.poprule()
+
+                            gate2 = self.at(gate1.pos.copy() + turning)
+                            gate3 = self.at((cell := gate1.pos.copy() + facing))
+                            gate4 = self.at(cell.copy() + turning)
+
+                            gate1.next = gate2.pos
+                            gate2.prev = gate1.pos
+
+                            gate3.prev = gate4.pos
+                            gate4.next = gate3.pos
+
+                            self.addrule(split, (gate1, facing, turning))
+
+                            passed = False
+                            if basedist == self.area * 2 or (dist := (self.fooddistance(snake.head, food))) <= basedist:
+                                basedist = 0 if basedist == self.area * 2 else dist
+                                shortestgate = gate1
+                                shortestturn = leftturn
+                                passed = True
+
+                            self.poprule()
+
+                            if firstjoin and passed:
+                                return shortestgate, facing, turning
+
+                            gate1.next = gate3.pos
+                            gate2.prev = gate4.pos
+
+                            gate3.prev = gate1.pos
+                            gate4.next = gate2.pos
+
+                            self.addhalfrule(split)
 
             if gate1.pos == snaketailnext: break
             gate1 = self.at(gate1.next)
 
         self.poprule()
-        shortestgate = None
-        shortestturn = None
-
-        i = 0
-        for gate1 in gates:
-            facing = gate1.pos.dirto(gate1.next)
-            turning = Cell.leftturn(facing) if gateturns[i] else Cell.rightturn(facing)
-
-            gate2 = self.at(gate1.pos.copy() + turning)
-            gate3 = self.at((cell := gate1.pos.copy() + facing))
-            gate4 = self.at(cell.copy() + turning)
-
-            gate1.next = gate2.pos
-            gate2.prev = gate1.pos
-
-            gate3.prev = gate4.pos
-            gate4.next = gate3.pos
-
-            self.addrule(split, (gate1, facing, turning))
-
-            passed = False
-            if basedist == self.area * 2 or (dist := (self.fooddistance(snake.head, food))) <= basedist:
-                basedist = 0 if basedist == self.area * 2 else dist
-                shortestgate = gate1
-                shortestturn = gateturns[i]
-                passed = True
-
-            self.poprule()
-
-            if firstjoin and passed:
-                return shortestgate, facing, turning
-
-            gate1.next = gate3.pos
-            gate2.prev = gate4.pos
-
-            gate3.prev = gate1.pos
-            gate4.next = gate2.pos
-
-            i += 1
 
         if shortestgate is not None:
             return self.split(None, shortestturn, shortestgate.pos)
