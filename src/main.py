@@ -282,6 +282,9 @@ class App:
             self.timer = 0
             self.paused = self.speed == 0
 
+            if self.autosave:
+                self.save()
+
             if self.skiptype:
                 while len(self.board.snake)<self.skipto:
                     self.resoult = self.board.update(self.agent)
@@ -294,9 +297,6 @@ class App:
                         break
 
             self.drawboard()
-
-            if self.autosave:
-                self.save()
 
             App.state = "game"
 

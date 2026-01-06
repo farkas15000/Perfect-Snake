@@ -45,7 +45,7 @@ class PerfectAgent(BaseAgent):
                             if self.snake.nexthead(dir).toString() not in self.snake.cells:
                                 break
 
-            snake = self.snake.copy()
+            snake = Snake2.copy(self.snake)
             snake.applydir(dir)
             if snake.head == self.food:
                 snake.reatachtail()
@@ -104,7 +104,7 @@ class PerfectAgent(BaseAgent):
             self.fallback = False
 
         if self.fallback and (self.snake.head.x+self.snake.head.y)%2 == (self.food.x+self.food.y)%2:
-            snake = self.snake.copy()
+            snake = Snake2.copy(self.snake)
 
             hit = False
             while True:
@@ -133,7 +133,7 @@ class PerfectAgent(BaseAgent):
         start = self.grid.at(snake.head)
         for i in range(len(snake) - 1):
             start = self.grid.at(start.prev)
-            if start.pos.toString() not in snake.cells:
+            if start.pos.toString() not in snake.cells if not isinstance(snake, Snake2) else snake.in_cells(start.pos):
                 self.onpath = False
                 break
 
@@ -142,7 +142,7 @@ class PerfectAgent(BaseAgent):
             start = self.grid.at(snake.head)
             for i in range(len(snake) - 1):
                 start = self.grid.at(start.next)
-                if start.pos.toString() not in snake.cells:
+                if start.pos.toString() not in snake.cells if not isinstance(snake, Snake2) else snake.in_cells(start.pos):
                     self.onpath = False
                     break
             if self.onpath:
@@ -152,6 +152,114 @@ class PerfectAgent(BaseAgent):
         for x in range(w):
             for y in range(h):
                 self.grid.cells[x][y].draw(screen, pygame.Rect(tlcorner.x + x * cellsize, tlcorner.y + y * cellsize, cellsize, cellsize))
+
+class Snake2(Snake):
+    def __init__(self, snake, cells): # not for instancing use!
+        super().__init__(snake, cells)
+
+        self.gainsset = set()
+        self.gainlist = []
+        self.lostset = set()
+
+        self.maxchanges = 0
+
+    @classmethod
+    def copy(cls, snake):
+        snake2 = Snake2((None,), {None,})
+
+        snake2.snake = snake.snake
+        snake2.cells = snake.cells
+        snake2.losttail = snake.losttail
+        snake2._head = snake._head
+        snake2._tail = snake._tail
+        snake2._dir = snake._dir
+
+        snake2.maxchanges = len(snake.snake)//3
+
+        if isinstance(snake, Snake2):
+            snake2.gainlist = snake.gainlist.copy()
+            snake2.gainsset = snake.gainsset.copy()
+            snake2.lostset = snake.lostset.copy()
+
+        return snake2
+
+    @property
+    def direction(self):
+        return self._dir
+
+    def applydir(self, dir: Cell):
+        if len(self.gainsset) >= self.maxchanges:
+            self.snake = self.snake.copy()
+            self.snake.extend(self.gainlist)
+
+            for x in range(len(self.lostset)):
+                self.snake.popleft()
+
+            self.maxchanges = len(self.snake) // 3
+
+            self.cells = self.cells - self.lostset
+            self.cells |= self.gainsset
+
+            self.gainlist.clear()
+            self.gainsset.clear()
+            self.lostset.clear()
+
+        self.removeTail()
+        self.addHead(self.nexthead(dir))
+
+    def addHead(self, head:Cell):
+        neck = self._head
+        self._dir = neck.dirto(head)
+
+        self._head = head
+        self.gainsset.add(head.toString())
+        self.gainlist.append(head)
+
+    def removeTail(self):
+        tail = self.snake[len(self.gainsset)]
+        self.losttail = tail
+        self.lostset.add(tail.toString())
+
+        self._tail = self.snake[len(self.gainsset)+1]
+
+    def reatachtail(self):
+        self._tail = self.losttail
+        self.lostset.remove(self.losttail.toString())
+
+    def in_cells(self, cell):
+        ct = cell.toString()
+        return ct in self.gainsset or (ct not in self.lostset and ct in self.cells)
+
+    def __len__(self):
+        return len(self.snake)+len(self.gainsset)-len(self.lostset)
+
+    def lookat(self, cell):
+        if not(0 <= cell.x < Snake.w and 0 <= cell.y < Snake.h):
+            return Snake.BODY
+
+        t = self.tail
+        if not cell==t and self.in_cells(cell):
+            return Snake.BODY
+
+        return Snake.EMPTY
+
+    def print(self, food: Cell):
+        print("/"+"--"*self.w+"\\")
+
+        for y in range(self.h):
+            row = "|"
+            for x in range(self.w):
+                cell = " "
+                if food.eq(x, y): cell = "O"
+                if self.in_cells(Cell(x, y)): cell = "#"
+                if self.head.eq(x, y): cell = "@"
+                if self.tail.eq(x, y): cell = "X"
+
+                row += " "+cell
+            row += "|"
+            print(row)
+
+        print("\\" + "--" * self.w + "/")
 
 class Block:
     def __init__(self, x, y):
@@ -455,10 +563,11 @@ class Grid:
 
         if not (0 <= gate2pos.x < self.w and 0 <= gate2pos.y < self.h): return None
 
-        # todo make it work with snake head tail grid index
         gate2 = self.at(gate2pos)
-        if snake is not None and (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                                  (gate1.next.toString() in snake.cells and gate1.next!=snake.tail)):
+        if snake is not None and ((gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
+                                  (gate1.next.toString() in snake.cells and gate1.next!=snake.tail))
+                if not isinstance(snake, Snake2) else (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
+                                                       (snake.in_cells(gate1.next) and gate1.next!=snake.tail))):
             return None
 
         if snake is not None and (gate1.pos.toString() in self.illegals or gate2.pos.toString() in self.illegals or
@@ -505,7 +614,10 @@ class Grid:
                         illegal = False
 
                         if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                                (gate1.next.toString() in snake.cells and gate1.next != snake.tail)):
+                                (gate1.next.toString() in snake.cells and gate1.next != snake.tail))\
+                                if not isinstance(snake, Snake2) else\
+                                (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
+                                 (snake.in_cells(gate1.next) and gate1.next!=snake.tail)):
                             illegal = True
 
                         if not illegal and (
@@ -620,7 +732,10 @@ class Grid:
                     illegal = False
 
                     if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                            (gate1.next.toString() in snake.cells and gate1.next != snake.tail)):
+                        (gate1.next.toString() in snake.cells and gate1.next != snake.tail)) \
+                            if not isinstance(snake, Snake2) else \
+                            (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
+                             (snake.in_cells(gate1.next) and gate1.next != snake.tail)):
                         illegal = True
 
                     if not illegal and (
@@ -666,7 +781,10 @@ class Grid:
                             illegal = False
 
                             if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                                    (gate1.next.toString() in snake.cells and gate1.next != snake.tail)):
+                                (gate1.next.toString() in snake.cells and gate1.next != snake.tail)) \
+                                    if not isinstance(snake, Snake2) else \
+                                    (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
+                                     (snake.in_cells(gate1.next) and gate1.next != snake.tail)):
                                 illegal = True
 
                             if not illegal and (
@@ -693,7 +811,7 @@ class Grid:
                 cell = " "
                 if food is not None and food.eq(x, y): cell = "O"
                 if snake is not None:
-                    if f"({x}, {y})" in snake.cells: cell = "#"
+                    if f"({x}, {y})" in snake.cells if not isinstance(snake, Snake2) else snake.in_cells(Cell(x ,y)): cell = "#"
                     if snake.head.eq(x, y): cell = "@"
                     if snake.tail.eq(x, y): cell = "X"
 
@@ -837,7 +955,7 @@ class Step(Node):
 
         k = self
         if 1 or k not in seen:
-            snake = self.snake.copy()
+            snake = Snake2.copy(self.snake)
             snake.applydir(dir)
 
             self.children[Step(snake, grid, dir, False, self.target, int(leftturn is None))] = 1
@@ -920,12 +1038,12 @@ class HeadStep(Node):
 
         k = str(self.snake.nexthead(dir)) + str(dir)
         if self.snake.lookat(self.snake.nexthead(dir)) != Snake.BODY and k not in seen:
-            snake = self.snake.copy()
+            snake = Snake2.copy(self.snake)
             snake.applydir(dir)
 
             wallhugs = 0
             for cell in snake.head.neighbors():
-                if not (cell==self.snake.head or cell==snake.tail) and cell.toString() in snake.cells:
+                if not (cell==self.snake.head or cell==snake.tail) and (cell.toString() in snake.cells if not isinstance(snake, Snake2) else snake.in_cells(cell)):
                     wallhugs += 1
 
             self.children[HeadStep(snake, grid, dir, False, self.target, wallhugs)] = 1

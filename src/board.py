@@ -171,11 +171,11 @@ class Snake:
     FOOD = 2
 
     def copy(self):
-        return Snake(self.snake, self.losttail)
+        return Snake(self.snake, self.cells, self.losttail)
 
-    def __init__(self, snake, losttail=None):
+    def __init__(self, snake, cells=None, losttail=None):
         self.snake = deque(snake)
-        self.cells = set(cell.toString() for cell in snake)
+        self.cells = set(cell.toString() for cell in snake) if cells is None else cells.copy()
         self.losttail = losttail
 
         self._head: Cell = self.snake.pop()
