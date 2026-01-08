@@ -8,7 +8,8 @@ import pygame
 
 from board import Board, Cell, Snake
 from baseagent import BaseAgent
-from perfect_agent import PerfectAgent
+
+from perfect_agent import PerfectAgent as Agent
 
 
 class App:
@@ -277,13 +278,15 @@ class App:
             self.seedimg = self.font.render("Seed: " + str(seed), False, "white", None).convert_alpha()
 
             self.board = Board(self.boardW, self.boardH, snake, seed)
-            self.agent = PerfectAgent(self.board)
 
             self.timer = 0
             self.paused = self.speed == 0
 
             if self.autosave:
                 self.save()
+
+            starttime = time.perf_counter()
+            self.agent = Agent(self.board)
 
             if self.skiptype:
                 while len(self.board.snake)<self.skipto:
@@ -295,6 +298,9 @@ class App:
                     self.resoult = self.board.update(self.agent)
                     if self.resoult != 0:
                         break
+            if self.skipto > 0:
+                print("Time:", time.perf_counter()-starttime)
+                print()
 
             self.drawboard()
 
@@ -313,11 +319,11 @@ class App:
 
             if x is not None and y is not None:
                 if self.mouse[1][0] and not self.mouse[0][0]:
-                    agent: PerfectAgent = self.agent
+                    agent: Agent = self.agent
                     agent.grid.split(None, True, Cell(x, y))
 
                 if self.mouse[1][2] and not self.mouse[0][2]:
-                    agent: PerfectAgent = self.agent
+                    agent: Agent = self.agent
                     agent.grid.split(None, False, Cell(x, y))
 
         if not self.paused:

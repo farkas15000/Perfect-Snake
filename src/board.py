@@ -10,6 +10,8 @@ class Board:
         Snake.h = h
 
         self.seed = seed
+        print("Seed:", self.seed)
+        print()
         random.seed(self.seed if self.seed!=0 else None)
         self.steps = 0
         self.timeout = int(self.area*2.5)
@@ -23,16 +25,21 @@ class Board:
     def update(self, agent):
         dir = agent.getDirection()
 
-        if not dir.isdir() or self.timeout<=0:
+        if not dir.isdir():
+            print("Step:", str(self.steps), "| Invalid direction!")
+            return -1
+
+        if self.timeout<=0:
+            print("Step:", str(self.steps), "| Time out, no food eaten in time!")
             return -1
 
         self.lastdir = dir
 
         if self.snake.lookat(self.snake.nexthead(dir)) == Snake.BODY:
+            print("Step:", str(self.steps), "| Died, hit wall or tail!")
             return -1
 
         self.snake.applydir(dir)
-        self.steps+=1
         self.timeout-=1
 
         if self.snake.head==self.food:
@@ -42,8 +49,10 @@ class Board:
                 self.timeout = int(self.area*2.5)
             else:
                 self.food = Cell(-1, -1)
+                print("Step:", str(self.steps), "| Won, eaten all food!")
                 return 1
 
+        self.steps += 1
         return 0
 
     def spawnfood(self):
@@ -234,6 +243,9 @@ class Snake:
         self._tail = self.losttail
         self.snake.appendleft(self.losttail)
         self.cells.add(self.losttail.toString())
+
+    def in_cells(self, cell):
+        return cell.toString() in self.cells
 
     def lookat(self, cell):
         if not(0 <= cell.x < Snake.w and 0 <= cell.y < Snake.h):

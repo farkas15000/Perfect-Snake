@@ -9,8 +9,6 @@ from baseagent import BaseAgent
 class PerfectAgent(BaseAgent):
     def __init__(self, board: Board):
         super().__init__(board)
-        print("seed:", self.game.seed)
-        print()
 
         self.grid = Grid(self.w, self.h).generatePath()
 
@@ -22,11 +20,12 @@ class PerfectAgent(BaseAgent):
         self.onpathcheck(self.snake)
 
     def getDirection(self):
-        print("stp:", self.game.steps)
+        #print("stp:", self.game.steps)
 
         self.grid.reroutefood(self.snake, self.food)
 
         if len(self.grid.rulesets) > (self.grid.w+self.grid.h+self.grid.odd)//2:
+            self.grid.burninsplitsdict()
             self.grid.burninrulesets()
 
         if len(self.snake)==self.area-1 and self.snake.head.distManhattan(self.food) == 1:
@@ -36,7 +35,7 @@ class PerfectAgent(BaseAgent):
         if not self.onpath:
             dir = self.grid.nextdir(self.snake.head)
             if self.snake.nexthead(dir).toString() in self.snake.cells:
-                dir = self.snake.head.dirto(self.grid.at(self.snake.head).prev)
+                dir = self.snake.head.dirto(self.grid.at(self.snake.head).getPrev(self.grid.splitsdict))
                 if self.snake.nexthead(dir).toString() in self.snake.cells:
                     dir = Cell.reversedir(self.grid.nextdir(self.snake.head))
                     if self.snake.nexthead(dir).toString() in self.snake.cells:
@@ -76,6 +75,7 @@ class PerfectAgent(BaseAgent):
                     self.steps = []
                 else:
                     self.grid = finished.grid
+                    self.grid.burninsplitsdict()
                     self.grid.burninrulesets()
 
             self.iter = 0
@@ -132,8 +132,8 @@ class PerfectAgent(BaseAgent):
         self.onpath = True
         start = self.grid.at(snake.head)
         for i in range(len(snake) - 1):
-            start = self.grid.at(start.prev)
-            if start.pos.toString() not in snake.cells if not isinstance(snake, Snake2) else snake.in_cells(start.pos):
+            start = self.grid.at(start.getPrev(self.grid.splitsdict))
+            if not snake.in_cells(start.pos):
                 self.onpath = False
                 break
 
@@ -142,7 +142,7 @@ class PerfectAgent(BaseAgent):
             start = self.grid.at(snake.head)
             for i in range(len(snake) - 1):
                 start = self.grid.at(start.next)
-                if start.pos.toString() not in snake.cells if not isinstance(snake, Snake2) else snake.in_cells(start.pos):
+                if not snake.in_cells(start.pos):
                     self.onpath = False
                     break
             if self.onpath:
@@ -151,7 +151,7 @@ class PerfectAgent(BaseAgent):
     def draw_debug(self, screen, tlcorner, cellsize, w, h):
         for x in range(w):
             for y in range(h):
-                self.grid.cells[x][y].draw(screen, pygame.Rect(tlcorner.x + x * cellsize, tlcorner.y + y * cellsize, cellsize, cellsize))
+                self.grid.cells[x][y].draw(screen, pygame.Rect(tlcorner.x + x * cellsize, tlcorner.y + y * cellsize, cellsize, cellsize), self.grid.splitsdict)
 
 class Snake2(Snake):
     def __init__(self, snake, cells): # not for instancing use!
@@ -277,6 +277,14 @@ class Block:
                     break
         return i
 
+    def getPrev(self, splitsdict: dict):
+        prev = splitsdict.get(self.pos.toTouple())
+        return Cell(*prev[0]) if prev else self.prev
+
+    def getNext(self, splitsdict: dict):
+        next = splitsdict.get(self.pos.toTouple())
+        return Cell(*next[1]) if next else self.next
+
     def copy(self):
         block = Block(*self.pos)
         block.next = self.next
@@ -303,6 +311,9 @@ class Block:
         return f"{i:>{len(str(area))}}"
 
     def __str__(self):
+        return self.pos.toString()
+
+    def toString(self, splitsdict):
         l = Cell.numtodir(0)
         u = Cell.numtodir(1)
         r = Cell.numtodir(2)
@@ -310,8 +321,8 @@ class Block:
 
         if self.next is None or self.prev is None: return " "
 
-        p = self.prev.dirto(self.pos)
-        n = self.pos.dirto(self.next)
+        p = self.getPrev(splitsdict).dirto(self.pos)
+        n = self.pos.dirto(self.getNext(splitsdict))
 
         if p == l:
             if n == l: return "←"
@@ -333,20 +344,20 @@ class Block:
         return " "
 
     COLOR = (163, 73, 164, 255)
-    def draw(self, screen, rect):
+    def draw(self, screen, rect, splitsdict):
         w, h = round(rect.w*(1/10)), round(rect.h*(1/10))
         center = pygame.Rect(0, 0, w, h)
         center.center = rect.center
 
         if self.prev is not None:
             prev = center.copy()
-            prev.move_ip(*(self.pos.dirto(self.prev)*(rect.w/2.5)))
+            prev.move_ip(*(self.pos.dirto(self.getPrev(splitsdict))*(rect.w/2.5)))
             pygame.draw.rect(screen, Block.COLOR, prev.union(center))
 
         if self.next is not None:
             next = center.copy()
-            nextdirrot = Cell.dirtonum(self.pos.dirto(self.next))*90
-            next.move_ip(*(self.pos.dirto(self.next)*(rect.w/4)))
+            nextdirrot = Cell.dirtonum(self.pos.dirto(self.getNext(splitsdict)))*90
+            next.move_ip(*(self.pos.dirto(self.getNext(splitsdict))*(rect.w/4)))
             pygame.draw.rect(screen, Block.COLOR, next.union(center))
 
             center = pygame.Vector2(rect.center)
@@ -361,11 +372,14 @@ class Grid:
         self.h = h
         self.area = w*h
         self.odd = w % 2 == 1 and h % 2 == 1
+        self.maxchanges = (self.w + self.h + self.odd)//2
 
         self.illegals = set()
         self.cells: list[list[Block]]|None = None
 
         self.rulesets:list[tuple[tuple[int, int]]] = []
+
+        self.splitsdict: dict[tuple[int, int], tuple[tuple[int, int], tuple[int, int]]] = dict()
 
     def generatePath(self):
         if self.odd:
@@ -459,18 +473,31 @@ class Grid:
         i = head.getIndex(self.rulesets)
         for x in range(self.area-self.odd):
             i += 1
-            head = self.at(head.next)
+            head = self.at(head.getNext(self.splitsdict))
             head._index = i%(self.area-self.odd)
         self.rulesets = []
 
+    def burninsplitsdict(self):
+        for pos, pn in self.splitsdict.items():
+            self.at(pos).set(self.at(pn[0]).pos, self.at(pn[1]).pos)
+
+        self.splitsdict = dict()
+
     def copy(self):
+        if len(self.rulesets) > self.maxchanges:
+            self.cells = [[self.cells[x][y].copy() for y in range(self.h)] for x in range(self.w)]
+            self.burninsplitsdict()
+            self.burninrulesets()
+
         grid = Grid(self.w, self.h)
 
         grid.illegals = self.illegals
 
-        grid.cells = [[self.cells[x][y].copy() for y in range(self.h)] for x in range(self.w)]
+        grid.cells = self.cells
 
         grid.rulesets = self.rulesets.copy()
+
+        grid.splitsdict = self.splitsdict.copy()
 
         return grid
 
@@ -479,11 +506,13 @@ class Grid:
             for y in range(self.h):
                 self.cells[x][y].flip(self.area-self.odd)
 
-    def at(self, cell: Cell):
-        return self.cells[cell.x][cell.y]
+    def at(self, cell: Cell|tuple[int, int]):
+        if isinstance(cell, Cell):
+            return self.cells[cell.x][cell.y]
+        return self.cells[cell[0]][cell[1]]
 
     def nextdir(self, cell: Cell):
-        return cell.dirto(self.at(cell).next)
+        return cell.dirto(self.at(cell).getNext(self.splitsdict))
 
     def reroutefood(self, snake, food: Cell):
         if not self.odd: return
@@ -491,6 +520,8 @@ class Grid:
         foodblock: Block = self.at(food)
 
         if self.at(foodblock.prev).next==food: return
+
+        self.burninsplitsdict()
 
         shortest = None
         dist = self.area*2
@@ -549,6 +580,42 @@ class Grid:
 
         return dist
 
+    def gatesturn(self, gate1, gate2, gate3, gate4):
+        """gate1.next = gate2.pos
+        gate2.prev = gate1.pos
+
+        gate3.prev = gate4.pos
+        gate4.next = gate3.pos"""
+
+        g1 = gate1.pos.toTouple()
+        g1pn = self.splitsdict.get(g1)
+        g2 = gate2.pos.toTouple()
+        g2pn = self.splitsdict.get(g2)
+        g3 = gate3.pos.toTouple()
+        g3pn = self.splitsdict.get(g3)
+        g4 = gate4.pos.toTouple()
+        g4pn = self.splitsdict.get(g4)
+
+        if g1pn and gate1.next == gate2.pos and gate1.prev.eq(*g1pn[0]):
+            self.splitsdict.pop(g1)
+        else:
+            self.splitsdict[g1] = (g1pn[0] if g1pn else gate1.prev.toTouple(), g2)
+
+        if g2pn and gate2.prev == gate1.pos and gate2.next.eq(*g2pn[1]):
+            self.splitsdict.pop(g2)
+        else:
+            self.splitsdict[g2] = (g1, g2pn[1] if g2pn else gate2.next.toTouple())
+
+        if g3pn and gate3.prev == gate4.pos and gate3.next.eq(*g3pn[1]):
+            self.splitsdict.pop(g3)
+        else:
+            self.splitsdict[g3] = (g4, g3pn[1] if g3pn else gate3.next.toTouple())
+
+        if g4pn and gate4.next == gate3.pos and gate4.prev.eq(*g4pn[0]):
+            self.splitsdict.pop(g4)
+        else:
+            self.splitsdict[g4] = (g4pn[0] if g4pn else gate4.prev.toTouple(), g3)
+
     def split(self,  snake: Snake|None, leftturn: bool, safegatepos: Cell|None):
         gate1 = None
         if snake is not None:
@@ -556,7 +623,7 @@ class Grid:
         if safegatepos is not None:
             gate1 = self.at(safegatepos)
 
-        facing = gate1.pos.dirto(gate1.next)
+        facing = gate1.pos.dirto(gate1.getNext(self.splitsdict))
         turning = Cell.leftturn(facing) if leftturn else Cell.rightturn(facing)
 
         gate2pos = gate1.pos.copy()+turning
@@ -564,25 +631,19 @@ class Grid:
         if not (0 <= gate2pos.x < self.w and 0 <= gate2pos.y < self.h): return None
 
         gate2 = self.at(gate2pos)
-        if snake is not None and ((gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                                  (gate1.next.toString() in snake.cells and gate1.next!=snake.tail))
-                if not isinstance(snake, Snake2) else (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
-                                                       (snake.in_cells(gate1.next) and gate1.next!=snake.tail))):
+        if snake is not None and (snake.in_cells(gate2.pos) or snake.in_cells(gate2.getPrev(self.splitsdict)) or
+                                  (snake.in_cells(gate1.getNext(self.splitsdict)) and gate1.getNext(self.splitsdict)!=snake.tail)):
             return None
 
         if snake is not None and (gate1.pos.toString() in self.illegals or gate2.pos.toString() in self.illegals or
-                                  gate2.prev.toString() in self.illegals or gate1.next.toString() in self.illegals):
+                                  gate2.getPrev(self.splitsdict).toString() in self.illegals or gate1.getNext(self.splitsdict).toString() in self.illegals):
             return None
 
-        if gate2.pos.dirto(gate2.prev)==facing:
+        if gate2.pos.dirto(gate2.getPrev(self.splitsdict))==facing:
             gate3 = self.at((cell:= gate1.pos.copy()+facing))
             gate4 = self.at(cell.copy()+turning)
 
-            gate1.next = gate2.pos
-            gate2.prev = gate1.pos
-
-            gate3.prev = gate4.pos
-            gate4.next = gate3.pos
+            self.gatesturn(gate1, gate2, gate3, gate4)
 
             return gate1, facing, turning
 
@@ -600,10 +661,10 @@ class Grid:
         shortestgate = None
         shortestturn = None
 
-        gate1 = self.at(self.at(snake.head).next)
-        snaketailnext = self.at(snake.tail).next
+        gate1 = self.at(self.at(snake.head).getNext(self.splitsdict))
+        snaketailnext = self.at(snake.tail).getNext(self.splitsdict)
         while True:
-            facing = gate1.pos.dirto(gate1.next)
+            facing = gate1.pos.dirto(gate1.getNext(self.splitsdict))
             for leftturn in (False, True):
                 turning = Cell.leftturn(facing) if leftturn else Cell.rightturn(facing)
                 gate2pos = gate1.pos.copy() + turning
@@ -613,30 +674,23 @@ class Grid:
                     if gate2.getIndex(self.rulesets) < -1:
                         illegal = False
 
-                        if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                                (gate1.next.toString() in snake.cells and gate1.next != snake.tail))\
-                                if not isinstance(snake, Snake2) else\
-                                (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
-                                 (snake.in_cells(gate1.next) and gate1.next!=snake.tail)):
+                        if (snake.in_cells(gate2.pos) or snake.in_cells(gate2.getPrev(self.splitsdict)) or
+                                 (snake.in_cells(gate1.getNext(self.splitsdict)) and gate1.getNext(self.splitsdict)!=snake.tail)):
                             illegal = True
 
                         if not illegal and (
                                 gate1.pos.toString() in self.illegals or gate2.pos.toString() in self.illegals or
-                                gate2.prev.toString() in self.illegals or gate1.next.toString() in self.illegals):
+                                gate2.getPrev(self.splitsdict).toString() in self.illegals or gate1.getNext(self.splitsdict).toString() in self.illegals):
                             illegal = True
 
-                        if not illegal and gate2.pos.dirto(gate2.prev) == facing:
+                        if not illegal and gate2.pos.dirto(gate2.getPrev(self.splitsdict)) == facing:
                             self.poprule()
 
                             gate2 = self.at(gate1.pos.copy() + turning)
                             gate3 = self.at((cell := gate1.pos.copy() + facing))
                             gate4 = self.at(cell.copy() + turning)
 
-                            gate1.next = gate2.pos
-                            gate2.prev = gate1.pos
-
-                            gate3.prev = gate4.pos
-                            gate4.next = gate3.pos
+                            #self.gatesturn(gate1, gate2, gate3, gate4)
 
                             self.addrule(split, (gate1, facing, turning))
 
@@ -650,18 +704,15 @@ class Grid:
                             self.poprule()
 
                             if firstjoin and passed:
+                                self.gatesturn(gate1, gate2, gate3, gate4)
                                 return shortestgate, facing, turning
 
-                            gate1.next = gate3.pos
-                            gate2.prev = gate4.pos
-
-                            gate3.prev = gate1.pos
-                            gate4.next = gate2.pos
+                            #self.gatesunturn(gate1, gate2, gate3, gate4)
 
                             self.addhalfrule(split)
 
             if gate1.pos == snaketailnext: break
-            gate1 = self.at(gate1.next)
+            gate1 = self.at(gate1.getNext(self.splitsdict))
 
         self.poprule()
 
@@ -714,15 +765,15 @@ class Grid:
         baseroute = set()
         gates = list()
 
-        gate1 = self.at(self.at(snake.head).next)
-        snaketailnext = self.at(snake.tail).next
+        gate1 = self.at(self.at(snake.head).getNext(self.splitsdict))
+        snaketailnext = self.at(snake.tail).getNext(self.splitsdict)
         i = self.area+2
         while True:
             if i <= 0:
                 return None
             i -= 1
             baseroute.add(gate1.pos.toString())
-            facing = gate1.pos.dirto(gate1.next)
+            facing = gate1.pos.dirto(gate1.getNext(self.splitsdict))
             for leftturn in (False, True):
                 turning = Cell.leftturn(facing) if leftturn else Cell.rightturn(facing)
                 gate2pos = gate1.pos.copy() + turning
@@ -731,29 +782,26 @@ class Grid:
                     gate2 = self.at(gate2pos)
                     illegal = False
 
-                    if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                        (gate1.next.toString() in snake.cells and gate1.next != snake.tail)) \
-                            if not isinstance(snake, Snake2) else \
-                            (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
-                             (snake.in_cells(gate1.next) and gate1.next != snake.tail)):
+                    if (snake.in_cells(gate2.pos) or snake.in_cells(gate2.getPrev(self.splitsdict)) or
+                             (snake.in_cells(gate1.getNext(self.splitsdict)) and gate1.getNext(self.splitsdict) != snake.tail)):
                         illegal = True
 
                     if not illegal and (
                             gate1.pos.toString() in self.illegals or gate2.pos.toString() in self.illegals or
-                            gate2.prev.toString() in self.illegals or gate1.next.toString() in self.illegals):
+                            gate2.getPrev(self.splitsdict).toString() in self.illegals or gate1.getNext(self.splitsdict).toString() in self.illegals):
                         illegal = True
 
-                    if not illegal and gate2.pos.dirto(gate2.prev) == facing:
+                    if not illegal and gate2.pos.dirto(gate2.getPrev(self.splitsdict)) == facing:
                         gates.append((gate1, leftturn))
 
             if gate1.pos == snaketailnext: break
-            gate1 = self.at(gate1.next)
+            gate1 = self.at(gate1.getNext(self.splitsdict))
 
         pathlength = len(baseroute) + len(snake) - 2
 
         while pathlength < self.area - self.odd and gates:
             gate1, turn = gates.pop()
-            facing = gate1.pos.dirto(gate1.next)
+            facing = gate1.pos.dirto(gate1.getNext(self.splitsdict))
             turning = Cell.leftturn(facing) if turn else Cell.rightturn(facing)
             gate2pos = gate1.pos.copy() + turning
 
@@ -763,15 +811,11 @@ class Grid:
                 gate4 = self.at(cell.copy() + turning)
                 end = gate4
 
-                gate1.next = gate2.pos
-                gate2.prev = gate1.pos
-
-                gate3.prev = gate4.pos
-                gate4.next = gate3.pos
+                self.gatesturn(gate1, gate2, gate3, gate4)
 
                 while True:
                     baseroute.add(gate1.pos.toString())
-                    facing = gate1.pos.dirto(gate1.next)
+                    facing = gate1.pos.dirto(gate1.getNext(self.splitsdict))
                     for leftturn in (False, True):
                         turning = Cell.leftturn(facing) if leftturn else Cell.rightturn(facing)
                         gate2pos = gate1.pos.copy() + turning
@@ -780,23 +824,20 @@ class Grid:
                             gate2 = self.at(gate2pos)
                             illegal = False
 
-                            if (gate2.pos.toString() in snake.cells or gate2.prev.toString() in snake.cells or
-                                (gate1.next.toString() in snake.cells and gate1.next != snake.tail)) \
-                                    if not isinstance(snake, Snake2) else \
-                                    (snake.in_cells(gate2.pos) or snake.in_cells(gate2.prev) or
-                                     (snake.in_cells(gate1.next) and gate1.next != snake.tail)):
+                            if (snake.in_cells(gate2.pos) or snake.in_cells(gate2.getPrev(self.splitsdict)) or
+                                     (snake.in_cells(gate1.getNext(self.splitsdict)) and gate1.getNext(self.splitsdict) != snake.tail)):
                                 illegal = True
 
                             if not illegal and (
                                     gate1.pos.toString() in self.illegals or gate2.pos.toString() in self.illegals or
-                                    gate2.prev.toString() in self.illegals or gate1.next.toString() in self.illegals):
+                                    gate2.getPrev(self.splitsdict).toString() in self.illegals or gate1.getNext(self.splitsdict).toString() in self.illegals):
                                 illegal = True
 
-                            if not illegal and gate2.pos.dirto(gate2.prev) == facing:
+                            if not illegal and gate2.pos.dirto(gate2.getPrev(self.splitsdict)) == facing:
                                 gates.append((gate1, leftturn))
 
                     if gate1.pos == end.pos: break
-                    gate1 = self.at(gate1.next)
+                    gate1 = self.at(gate1.getNext(self.splitsdict))
 
                 pathlength = len(baseroute) + len(snake) - 2
 
@@ -815,7 +856,7 @@ class Grid:
                     if snake.head.eq(x, y): cell = "@"
                     if snake.tail.eq(x, y): cell = "X"
 
-                row += str(self.cells[x][y])+cell
+                row += self.cells[x][y].toString(self.splitsdict)+cell
             row += "|"
             print(row)
 
@@ -939,11 +980,9 @@ class Step(Node):
         if leftturn is None:
             grid = self.grid
         else:
-            sl1 = self.grid.split(self.snake, leftturn, None)
+            grid = self.grid.copy()
+            sl1 = grid.split(self.snake, leftturn, None)
             if sl1:
-                grid = self.grid.copy()
-                self.grid.unsplit(None, leftturn, self.snake.head)
-
                 jsl1 = grid.joinaftersplit(sl1, self.snake, self.target, self.grid.area*2, True)
                 if not jsl1:
                     return
