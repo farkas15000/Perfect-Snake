@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import platform
@@ -25,31 +26,37 @@ class App:
             "Esc": pygame.K_ESCAPE,
         }
 
-        self.winResolution = 800, 900
-
         self.states.update({"setup": self.setup,
                             "game": self.game,
                             })
         App.st = self
 
+        self.web = False
         if hasattr(platform, "window"):
+            self.web = True
             self.mobile = platform.window.mobile_check() or platform.window.mobile_tablet()
         else:
             self.mobile = False
 
+        if not self.web:
+            self.winResolution = 800, 900
+        else:
+            self.winResolution = 400, 450
+
         pygame.init()
         self.clock = pygame.time.Clock()
-
-        #self.logical_sizeRect = pygame.Rect(0, 0, 800, 900)
 
         self.window = pygame.Window(size=self.winResolution)
         self.window.resizable = True
         self.window.title = "Perfect Snake"
 
-        self.display = self.window.get_surface()
-        #self.screen = pygame.Surface(self.logical_sizeRect.size).convert()
+        if not self.web:
+            self.display = self.window.get_surface()
+        else:
+            self.display = pygame.display.set_mode(size=self.winResolution)
 
         self.font = pygame.font.Font(size=45)
+
 
         self.dt = 0.016
         self.running = True
@@ -120,7 +127,7 @@ class App:
             self.selected = None
 
         self.screen.fill(self.backgroundcolor)
-        pygame.draw.rect(self.screen, "black", pygame.Rect(0, 0, self.screen.width, 100))
+        pygame.draw.rect(self.screen, "black", pygame.Rect(0, 0, self.screen.get_width(), 100))
 
         boardWprev = self.boardW
         if pygame.Rect(8, 17, 102, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
@@ -317,7 +324,7 @@ class App:
                 self.resoult = self.board.update(self.agent)
 
         self.screen.fill(self.backgroundcolor)
-        pygame.draw.rect(self.screen, "black", pygame.Rect(0, 0, self.screen.width, 100))
+        pygame.draw.rect(self.screen, "black", pygame.Rect(0, 0, self.screen.get_width(), 100))
 
         lengthimg = self.font.render("Length: " + str(len(self.board.snake.snake)), False, "white", None).convert_alpha()
         self.screen.blit(lengthimg, (10, 20))
@@ -522,7 +529,7 @@ class App:
 
     def inputToNum(self, value, minvalue, maxvalue):
         text = str(value)
-        if self.keys((pygame.K_LCTRL,))[1] and self.keys((pygame.K_v,))[0]:
+        if self.keys((pygame.K_LCTRL,))[1] and self.keys((pygame.K_v,))[0] and not self.web:
             temp = pygame.scrap.get_text()
             try:
                 text = str(abs(int(temp)))
@@ -535,7 +542,7 @@ class App:
             text += self.char
         text = min(int(text) if text else minvalue, maxvalue)
 
-        if self.keys((pygame.K_LCTRL,))[1] and self.keys((pygame.K_c,))[0]:
+        if self.keys((pygame.K_LCTRL,))[1] and self.keys((pygame.K_c,))[0] and not self.web:
             pygame.scrap.put_text(str(text))
 
         return text
@@ -597,9 +604,13 @@ class App:
         pygame.mixer.music.stop()
 
         self.display.fill("Black")
-        self.window.flip()
 
-    def run(self):
+        if not self.web:
+            self.window.flip()
+        else:
+            pygame.display.update()
+
+    async def run(self):
         self.mousePos = (pygame.Vector2(0, 0), pygame.Vector2(0, 0))
         self.keyboard = (pygame.key.get_pressed(), pygame.key.get_pressed())
         self.mouse = (pygame.mouse.get_pressed(), pygame.mouse.get_pressed())
@@ -633,7 +644,10 @@ class App:
 
             pygame.transform.scale(self.screen, rect.size, self.display.subsurface(rect))
 
-            self.window.flip()
+            if not self.web:
+                self.window.flip()
+            else:
+                pygame.display.update()
 
             App.prevState = prev_state
 
@@ -649,10 +663,11 @@ class App:
                 )
             frame += 1
 
+            await asyncio.sleep(0)
             self.clock.tick(self.fps)
             fps_end2 = time.perf_counter()
             self.dt = min(fps_end2 - fps_start - event_time, 0.1)
 
 if __name__ == "__main__":
     app = App()
-    app.run()
+    asyncio.run(app.run())
