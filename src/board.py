@@ -1,5 +1,7 @@
+import traceback
 from collections import deque
 import random
+import sys
 
 class Board:
     def __init__(self, w, h, snake, seed=None):
@@ -10,8 +12,6 @@ class Board:
         Snake.h = h
 
         self.seed = seed
-        print("Seed:", self.seed)
-        print()
         random.seed(self.seed if self.seed!=0 else None)
         self.steps = 0
         self.timeout = int(self.area*2.5)
@@ -22,8 +22,19 @@ class Board:
         self.food: Cell|None = None
         self.spawnfood()
 
+        print("Starting")
+        print("Seed:", self.seed, "W:", self.w, "H:", self.h, "Head:", self.snake.head, "Tail:", self.snake.tail)
+        print()
+
     def update(self, agent):
-        dir = agent.getDirection()
+        try:
+            dir = agent.getDirection()
+
+        except Exception:
+            print("Step:", str(self.steps), "Error!")
+            print()
+            print(traceback.format_exc(), file=sys.stderr)
+            exit(1)
 
         if not dir.isdir():
             print("Step:", str(self.steps), "| Invalid direction!")
@@ -41,6 +52,7 @@ class Board:
 
         self.snake.applydir(dir)
         self.timeout-=1
+        self.steps += 1
 
         if self.snake.head==self.food:
             self.snake.reatachtail()
@@ -52,7 +64,6 @@ class Board:
                 print("Step:", str(self.steps), "| Won, eaten all food!")
                 return 1
 
-        self.steps += 1
         return 0
 
     def spawnfood(self):
@@ -252,7 +263,7 @@ class Snake:
             return Snake.BODY
 
         t = self.tail
-        if not cell==t and cell.toString() in self.cells:
+        if not cell==t and self.in_cells(cell):
             return Snake.BODY
 
         return Snake.EMPTY

@@ -307,25 +307,6 @@ class App:
             App.state = "game"
 
     def game(self):
-
-        if 0:
-            x = int((self.mousePos[1][0] - self.tlcorner.x) // self.cellsize)
-            if not (0 <= x <= self.boardW - 1):
-                x = None
-
-            y = int((self.mousePos[1][1] - self.tlcorner.y) // self.cellsize)
-            if not (0 <= y <= self.boardH - 1):
-                y = None
-
-            if x is not None and y is not None:
-                if self.mouse[1][0] and not self.mouse[0][0]:
-                    agent: Agent = self.agent
-                    agent.grid.split(None, True, Cell(x, y))
-
-                if self.mouse[1][2] and not self.mouse[0][2]:
-                    agent: Agent = self.agent
-                    agent.grid.split(None, False, Cell(x, y))
-
         if not self.paused:
             self.timer += self.dt
             while self.resoult == 0 and self.speed>0 and self.timer>1/self.speed:

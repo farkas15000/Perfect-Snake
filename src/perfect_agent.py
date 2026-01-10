@@ -24,7 +24,7 @@ class PerfectAgent(BaseAgent):
 
         self.grid.reroutefood(self.snake, self.food)
 
-        if len(self.grid.rulesets) > (self.grid.w+self.grid.h+self.grid.odd)//2:
+        if len(self.grid.rulesets) > (self.grid.w+self.grid.h+self.grid.odd)//3:
             self.grid.burninsplitsdict()
             self.grid.burninrulesets()
 
@@ -233,16 +233,6 @@ class Snake2(Snake):
     def __len__(self):
         return len(self.snake)+len(self.gainsset)-len(self.lostset)
 
-    def lookat(self, cell):
-        if not(0 <= cell.x < Snake.w and 0 <= cell.y < Snake.h):
-            return Snake.BODY
-
-        t = self.tail
-        if not cell==t and self.in_cells(cell):
-            return Snake.BODY
-
-        return Snake.EMPTY
-
     def print(self, food: Cell):
         print("/"+"--"*self.w+"\\")
 
@@ -260,6 +250,63 @@ class Snake2(Snake):
             print(row)
 
         print("\\" + "--" * self.w + "/")
+
+class Snake3(Snake):
+    def __init__(self, snake, cells): # not for instancing use!
+        super().__init__(snake, cells)
+
+        self.grid: Grid|None = None
+        self.headindex = 0
+        self.tailindex = 0
+
+    @classmethod
+    def copy(cls, snake, grid):
+        snake3 = Snake3((None,), {None,})
+
+        snake3.losttail = snake.losttail
+        snake3._head = snake._head
+        snake3._tail = snake._tail
+        snake3._dir = snake._dir
+
+        snake3.grid = grid
+        snake3.headindex = grid.at(snake3.head).getIndex(grid.rulesets)
+        snake3.tailindex = grid.at(snake3.tail).getIndex(grid.rulesets)
+
+        return snake3
+
+    @property
+    def direction(self):
+        return self._dir
+
+    def addHead(self, head:Cell):
+        neck = self._head
+        self._dir = neck.dirto(head)
+
+        self._head = head
+        self.headindex = self.grid.at(head).getIndex(self.grid.rulesets)
+
+    def removeTail(self):
+        self.losttail = self.tail
+
+        self._tail = self.grid.at(self._tail).getNext(self.grid.splitsdict)
+        self.tailindex = self.grid.at(self._tail).getIndex(self.grid.rulesets)
+
+    def reatachtail(self):
+        self._tail = self.losttail
+        self.tailindex = self.grid.at(self._tail).getIndex(self.grid.rulesets)
+
+    def in_cells(self, cell):
+        cellindex = self.grid.at(cell).getIndex(self.grid.rulesets)
+        if self.headindex > self.tailindex:
+            return self.tailindex <= cellindex <= self.headindex
+
+        return cellindex <= self.headindex or self.tailindex <= cellindex
+
+    def __len__(self):
+        if self.headindex > self.tailindex:
+            return self.headindex - self.tailindex + 1
+
+        return self.grid.area - self.grid.odd - abs(self.headindex - self.tailindex) + 1
 
 class Block:
     def __init__(self, x, y):
@@ -372,7 +419,7 @@ class Grid:
         self.h = h
         self.area = w*h
         self.odd = w % 2 == 1 and h % 2 == 1
-        self.maxchanges = (self.w + self.h + self.odd)//2
+        self.maxchanges = (self.w + self.h + self.odd)//3
 
         self.illegals = set()
         self.cells: list[list[Block]]|None = None
@@ -994,7 +1041,7 @@ class Step(Node):
 
         k = self
         if 1 or k not in seen:
-            snake = Snake2.copy(self.snake)
+            snake = Snake3.copy(self.snake, grid)
             snake.applydir(dir)
 
             self.children[Step(snake, grid, dir, False, self.target, int(leftturn is None))] = 1
