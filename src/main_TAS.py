@@ -79,6 +79,9 @@ class App:
         self.frames = deque(maxlen=120)
         self.frame = 0
 
+        self.lengthimg = None
+        self.stepsimg = None
+
     def screenshot_rect_to_surf(self, rect):
         with mss.mss() as sct:
             monitor = {"top": rect.top, "left": rect.left, "width": rect.w, "height": rect.h}
@@ -93,6 +96,8 @@ class App:
     def start(self):
         # to select screenshot space press q while mouse at top left corner on game and press e while mouse at bottom left on game board.
         # after selection press space
+
+        # use a and d to navigate last game's last 120 frame.
 
         self.screen.fill("black")
 
@@ -124,7 +129,6 @@ class App:
 
         l = len(self.frames)
         if self.frames and len(self.frames)>=self.frame%l+1:
-            print(self.frame%l)
             self.screen.blit(self.frames[self.frame%l], (0, 100))
 
     def board(self):
@@ -230,6 +234,9 @@ class App:
         if keyboard.is_pressed("esc"):
             self.quit()
 
+        length = len(self.field.snake.snake)
+        steps = self.field.steps
+
         if self.field.resoult == 0:
             self.img = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
 
@@ -238,13 +245,15 @@ class App:
             keyboard.press_and_release(Cell.dirtokeycode(dir))
 
         tlcorner = pygame.Vector2(max(self.img.width, 500) // 2 - self.img.width // 2, 100)
-        self.screen.fill("black")
+        self.screen.fill("black", rect=pygame.Rect(0, 0, self.logical_sizeRect.width, 100))
 
-        lengthimg = self.font.render("Length: " + str(len(self.field.snake.snake)), False, "white",
-                                     None).convert_alpha()
-        self.screen.blit(lengthimg, (10, 20))
-        stepsimg = self.font.render("Steps: " + str(self.field.steps), False, "white", None).convert_alpha()
-        self.screen.blit(stepsimg, (10, 60))
+        if length != (l:=len(self.field.snake.snake)) or self.lengthimg is None:
+            self.lengthimg = self.font.render("Length: " + str(l), False, "white", None).convert_alpha()
+        self.screen.blit(self.lengthimg, (10, 20))
+
+        if steps != self.field.steps or self.stepsimg is None:
+            self.stepsimg = self.font.render("Steps: " + str(self.field.steps), False, "white", None).convert_alpha()
+        self.screen.blit(self.stepsimg, (10, 60))
 
         if self.field.food is not None:
             pygame.draw.rect(self.img, "red", pygame.Rect(self.field.food.x * self.cellw + 3,self.field.food.y * self.cellh + 3, round(self.cellw)-6, round(self.cellh)-6), 3, round(self.cellw / 3))
@@ -450,7 +459,7 @@ class App:
                 )
             frame += 1
 
-            self.clock.tick(60)
+            self.clock.tick(120)
             fps_end2 = time.perf_counter()
             self.dt = min(fps_end2 - fps_start - event_time, 0.1)
 

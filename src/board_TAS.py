@@ -27,6 +27,8 @@ class Board:
         self.steps = 0
         self.resoult = 0
 
+        self.futurestep = None
+
     def update(self, agent, image):
         if image.get_at((0, 0)) != self.alivecolor and not self.snake.in_cells(Cell(0, 0)):
             self.resoult = -1
@@ -35,32 +37,45 @@ class Board:
         if self.resoult != 0:
             return None
 
-        if self.steps == 0:
-            self.steps += 1
-            self.resoult = 0
-            return self.lastdir
-
+        foodfound = False
         if self.food is None:
             self.foodfind(image)
             if self.food is None:
                 return None
+            else:
+                foodfound = True
 
-        if not self.headinsync(image):
+        if not (headinsync:=self.headinsync(image)) and not foodfound and self.steps != 0:
             return None
 
-        try:
-            dir = agent.getDirection()
+        futuresteping = False
+        if self.futurestep is not None:
+            if headinsync:
+                futuresteping = True
+                dir = self.futurestep
+                self.futurestep = None
+            else:
+                return None
 
-        except Exception:
-            print("Step:", str(self.steps), "Error!")
-            print()
-            print(traceback.format_exc(), file=sys.stderr)
-            self.resoult = -1
-            return None
+        if not futuresteping:
+            try:
+                dir = agent.getDirection()
+
+            except Exception:
+                print("Step:", str(self.steps), "Error!")
+                print()
+                print(traceback.format_exc(), file=sys.stderr)
+                self.resoult = -1
+                return None
 
         if not dir.isdir():
             print("Step:", str(self.steps), "| Invalid direction!")
             self.resoult = -1
+            return None
+
+        if foodfound and not headinsync and self.steps != 0:
+            self.futurestep = dir
+            self.resoult = 0
             return None
 
         self.lastdir = dir
@@ -80,21 +95,30 @@ class Board:
             else:
                 print("Step:", str(self.steps), "| Won, eaten all food!")
                 self.resoult = 1
-                return None
+                return dir
 
         self.resoult = 0
         return dir
 
     def headinsync(self, img):
-        return colordif(self.pixelcolorat(self.snake.head, img), self.headcolor) < 0.2
+        cellw = img.width / self.w
+        cellh = img.height / self.h
+        n = int((cellw + cellh)/4)
+
+        center = pygame.Vector2(round(cellw*self.snake.head.x+cellw/2)-self.lastdir.x*int(n/3.5), round(cellh*self.snake.head.y+cellh/2)-self.lastdir.y*int(n/3.5))
+        for i in range(n):
+            if colordif(img.get_at(center), self.headcolor) > 0.2:
+                return False
+            center -= self.lastdir.toTouple()
+        return True
 
     def foodfind(self, img: pygame.Surface):
         for x in range(self.w):
             for y in range(self.h):
                 pos = Cell(x, y)
-                c = self.pixelcolorat(pos, img)
+                cs = self.pixelcolorat(pos, img)
 
-                if c == self.foodcolor and pos != self.lastfood:
+                if pos != self.lastfood and any(c == self.foodcolor for c in cs):
                     self.food = pos
                     self.lastfood = pos
                     return
@@ -105,17 +129,12 @@ class Board:
         cellw = img.width/self.w
         cellh = img.height/self.h
 
-        c1 = img.get_at((round(cellw*pos.x+cellw/2), round(cellh*pos.y+cellh/2)))
-        """c2 = img.get_at((round(cellw*pos.x+cellw/2 + cellw/4), round(cellh*pos.y+cellh/2)))
-        c3 = img.get_at((round(cellw*pos.x+cellw/2), round(cellh*pos.y+cellh/2 + cellh/4)))
-        c4 = img.get_at((round(cellw*pos.x+cellw/2 - cellw/4), round(cellh*pos.y+cellh/2)))
-        c5 = img.get_at((round(cellw*pos.x+cellw/2), round(cellh*pos.y+cellh/2 - cellh/4)))
+        center = pygame.Vector2((round(cellw*pos.x+cellw/2), round(cellh*pos.y+cellh/2)))
 
-        i = 0
-        r = round((c1[i]+c2[i]+c3[i]+c4[i]+c5[i])/5)
-        i+=1
-        g = round((c1[i]+c2[i]+c3[i]+c4[i]+c5[i])/5)
-        i += 1
-        b = round((c1[i]+c2[i]+c3[i]+c4[i]+c5[i])/5)"""
+        c1 = img.get_at(center)
+        c2 = img.get_at(center+(0, 1))
+        c3 = img.get_at(center+(0, -1))
+        c4 = img.get_at(center+(1, 0))
+        c5 = img.get_at(center+(-1, 0))
 
-        return c1 #r, g, b, 255
+        return c1, c2, c3, c4, c5
