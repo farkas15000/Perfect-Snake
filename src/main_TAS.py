@@ -1,9 +1,10 @@
 import platform
 import pygame
 import time
+from collections import deque
 
 import win32api
-from PIL import ImageGrab
+import mss
 import keyboard
 
 from board import Cell, Snake
@@ -62,6 +63,8 @@ class App:
 
         self.tl = pygame.Vector2(60, 60)
         self.br = pygame.Vector2(0, 0)
+        self.tlrestore = pygame.Vector2(60, 60)
+        self.brrestore = pygame.Vector2(0, 0)
 
         self.img = None
         self.field: Board|None = None
@@ -72,6 +75,20 @@ class App:
         self.head = None
         self.tail = None
         self.agent: BaseAgent|None = None
+
+        self.frames = deque(maxlen=120)
+        self.frame = 0
+
+    def screenshot_rect_to_surf(self, rect):
+        with mss.mss() as sct:
+            monitor = {"top": rect.top, "left": rect.left, "width": rect.w, "height": rect.h}
+            sct_img = sct.grab(monitor)
+            surf = pygame.image.frombytes(sct_img.rgb, sct_img.size, "RGB")
+            return surf
+
+    def screenshot_tl_br_to_surf(self, tlbr):
+        rect = pygame.Rect(tlbr[0], tlbr[1], tlbr[2]-tlbr[0], tlbr[3]-tlbr[1],)
+        return self.screenshot_rect_to_surf(rect)
 
     def start(self):
         # to select screenshot space press q while mouse at top left corner on game and press e while mouse at bottom left on game board.
@@ -85,28 +102,37 @@ class App:
         if keyboard.is_pressed("e"):
             self.br = pygame.Vector2(win32api.GetCursorPos())
 
-        imgtl = ImageGrab.grab((self.tl.x-60, self.tl.y-60, *self.tl), False, True)
-        imgtl = pygame.image.frombytes(imgtl.tobytes(), imgtl.size, imgtl.mode)
+        imgtl = self.screenshot_tl_br_to_surf((self.tl.x-60, self.tl.y-60, *self.tl))
         self.screen.blit(imgtl, (0, 0))
 
-        imgbr = ImageGrab.grab((*self.br, self.br.x + 60, self.br.y + 60), False, True)
-        imgbr = pygame.image.frombytes(imgbr.tobytes(), imgbr.size, imgbr.mode)
+        imgbr = self.screenshot_tl_br_to_surf((*self.br, self.br.x + 60, self.br.y + 60))
         self.screen.blit(imgbr, (80, 0))
 
-        if keyboard.is_pressed("space") and self.tl.x<self.br.x and self.tl.y<self.br.y:
+        if self.keys((pygame.K_SPACE,))[0] and self.tl.x<self.br.x and self.tl.y<self.br.y:
+            self.tlrestore = self.tl
+            self.brrestore = self.br
             self.tl = getcorner(imgtl, pygame.Vector2(imgtl.size)-(1, 1), pygame.Vector2(-1, -1)) + self.tl-(60, 60)
             self.br = getcorner(imgbr, pygame.Vector2(0, 0), pygame.Vector2(1, 1)) + self.br - (1, 1)
 
             App.state = "board"
+
+        if self.keys((pygame.K_d,))[0]:
+            self.frame += 1
+
+        if self.keys((pygame.K_a,))[0]:
+            self.frame -= 1
+
+        l = len(self.frames)
+        if self.frames and len(self.frames)>=self.frame%l+1:
+            print(self.frame%l)
+            self.screen.blit(self.frames[self.frame%l], (0, 100))
 
     def board(self):
         # set board width and height while mouse is hovering ower it.
         # place snake head with left click on board and place snake tail with right click on board.
         # plick back to real game to be in focus and press space to start.
 
-        #if not self.img or self.keys((pygame.K_RETURN,))[0]:
-        img = ImageGrab.grab((*self.tl, *self.br), False, True)
-        self.img = pygame.image.frombytes(img.tobytes(), img.size, img.mode)
+        self.img = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
 
         if self.logical_sizeRect.w!=max(self.img.width, 500) or self.logical_sizeRect.height!=self.img.height+100:
             self.logical_sizeRect.size = (max(self.img.width, 500), self.img.height+100)
@@ -173,8 +199,7 @@ class App:
             pygame.draw.rect(self.screen, "blue", pygame.Rect(tlcorner.x+self.head.x*cellw, tlcorner.y+self.head.y*cellh, round(cellw), round(cellh)), 3, round(cellw/3))
 
         if ready and keyboard.is_pressed("space") and not self.window.focused:
-            img = ImageGrab.grab((*self.tl, *self.br), False, True)
-            self.img = pygame.image.frombytes(img.tobytes(), img.size, img.mode)
+            self.img = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
 
             self.cellw = cellw
             self.cellh = cellh
@@ -190,6 +215,15 @@ class App:
 
             App.state = "game"
 
+        if keyboard.is_pressed("enter"):
+            self.agent = None
+            self.field = None
+            self.img = None
+            self.tl = self.tlrestore
+            self.br = self.brrestore
+            self.frame = 0
+            App.state = "start"
+
     def game(self):
         # press enter to restart setup
 
@@ -197,31 +231,43 @@ class App:
             self.quit()
 
         if self.field.resoult == 0:
-            img = ImageGrab.grab((*self.tl, *self.br), False, True)
-            self.img = pygame.image.frombytes(img.tobytes(), img.size, img.mode)
-
-        tlcorner = pygame.Vector2(max(self.img.width, 500) // 2 - self.img.width // 2, 100)
-        self.screen.fill("black")
-        self.screen.blit(self.img, tlcorner)
-
-        pygame.draw.rect(self.screen, self.field.headcolor, pygame.Rect(10, 10, 30, 30))
-        pygame.draw.rect(self.screen, self.field.foodcolor, pygame.Rect(50, 10, 30, 30))
+            self.img = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
 
         dir = self.field.update(self.agent, self.img)
         if dir is not None:
             keyboard.press_and_release(Cell.dirtokeycode(dir))
 
+        tlcorner = pygame.Vector2(max(self.img.width, 500) // 2 - self.img.width // 2, 100)
+        self.screen.fill("black")
+
+        lengthimg = self.font.render("Length: " + str(len(self.field.snake.snake)), False, "white",
+                                     None).convert_alpha()
+        self.screen.blit(lengthimg, (10, 20))
+        stepsimg = self.font.render("Steps: " + str(self.field.steps), False, "white", None).convert_alpha()
+        self.screen.blit(stepsimg, (10, 60))
+
         if self.field.food is not None:
-            pygame.draw.rect(self.screen, "red", pygame.Rect(tlcorner.x + self.field.food.x * self.cellw + 3, tlcorner.y + self.field.food.y * self.cellh + 3, round(self.cellw)-6, round(self.cellh)-6), 3, round(self.cellw / 3))
+            pygame.draw.rect(self.img, "red", pygame.Rect(self.field.food.x * self.cellw + 3,self.field.food.y * self.cellh + 3, round(self.cellw)-6, round(self.cellh)-6), 3, round(self.cellw / 3))
 
         for cell in self.field.snake.snake:
-            pygame.draw.rect(self.screen, "blue", pygame.Rect(tlcorner.x + cell.x * self.cellw, tlcorner.y + cell.y * self.cellh, round(self.cellw), round(self.cellh)), 3, round(self.cellw / 3))
+            pygame.draw.rect(self.img, (15, 80, 255, 255), pygame.Rect(cell.x * self.cellw,cell.y * self.cellh, round(self.cellw), round(self.cellh)), 3, round(self.cellw / 3))
+        pygame.draw.rect(self.img, "blue", pygame.Rect(self.field.snake.head.x * self.cellw, self.field.snake.head.y * self.cellh, round(self.cellw), round(self.cellh)), 3, round(self.cellw / 3))
 
-        if self.keys((pygame.K_RETURN,))[0]:
+        self.screen.blit(self.img, tlcorner)
+
+        if self.field.resoult == 0:
+            self.frames.append(self.img)
+            if len(self.frames) > 120:
+                self.frames.popleft()
+
+        if keyboard.is_pressed("enter"):
             self.agent = None
             self.field = None
             self.img = None
-            App.state = "board"
+            self.tl = self.tlrestore
+            self.br = self.brrestore
+            self.frame = 0
+            App.state = "start"
 
     def events(self) -> float:
         fps_start = time.perf_counter()
