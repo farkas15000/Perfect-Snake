@@ -90,7 +90,7 @@ class Board:
 
         if self.snake.head == self.food:
             self.snake.reatachtail()
-            if len(self.snake) < self.area:
+            if len(self.snake)-1 < self.area:
                 self.food = None
             else:
                 print("Step:", str(self.steps), "| Won, eaten all food!")

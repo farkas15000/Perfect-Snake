@@ -1006,6 +1006,8 @@ class Node:
         return None
 
 class Step(Node):
+    FAILPOINTMULT = 1.5
+
     def __init__(self, snake, grid, dir, move, target, priority=0):
         super().__init__()
 
@@ -1072,9 +1074,11 @@ class Step(Node):
         return dcomp > 0
 
     def failpoint(self, openSetSize, gScoreSize, checks):
-        return checks > self.grid.area * 1.5
+        return checks > self.grid.area * Step.FAILPOINTMULT
 
 class HeadStep(Node):
+    FAILPOINTMULT = 1.5
+
     def __init__(self, snake, grid, dir, move, target, wallhugs):
         super().__init__()
 
@@ -1160,7 +1164,7 @@ class HeadStep(Node):
         return dcomp > 0
 
     def failpoint(self, openSetSize, gScoreSize, checks):
-        return checks > self.grid.area * 1.5
+        return checks > self.grid.area * HeadStep.FAILPOINTMULT
 
 def compls(a, b):
     if a == b: return 0

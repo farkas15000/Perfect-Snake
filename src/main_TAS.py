@@ -13,6 +13,10 @@ from baseagent import BaseAgent
 
 from perfect_agent import PerfectAgent as Agent
 
+from perfect_agent import Step, HeadStep
+Step.FAILPOINTMULT = 1.05
+HeadStep.FAILPOINTMULT = 1.05
+
 class App:
     st = None
     state = "start"
@@ -276,8 +280,8 @@ class App:
             keyboard.press_and_release(Cell.dirtokeycode(dir))
 
         t = time.perf_counter() - start
-        if t > 0.01:
-            print(t)
+        if t >= 0.01:
+            print("Warning:", t)
 
         tlcorner = pygame.Vector2(max(self.img.width, 500) // 2 - self.img.width // 2, 100)
         self.screen.fill("black", rect=pygame.Rect(0, 0, self.logical_sizeRect.width, 100))
@@ -485,7 +489,7 @@ class App:
             # debug fps
             fps_end = time.perf_counter()
             dt = fps_end - fps_start - event_time
-            if frame % 8 == 0 and dt:
+            if frame % 32 == 0 and dt:
                 frame = 0
                 self.window.title = (
                     f"Snake TAS    "
@@ -494,7 +498,7 @@ class App:
                 )
             frame += 1
 
-            self.clock.tick(120)
+            self.clock.tick(600)
             fps_end2 = time.perf_counter()
             self.dt = min(fps_end2 - fps_start - event_time, 0.1)
 
