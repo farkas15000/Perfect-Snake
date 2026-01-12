@@ -4,7 +4,7 @@ import time
 from collections import deque
 
 import win32api
-import mss
+import dxcam
 import keyboard
 
 from board import Cell, Snake
@@ -82,16 +82,30 @@ class App:
         self.lengthimg = None
         self.stepsimg = None
 
-    def screenshot_rect_to_surf(self, rect):
-        with mss.mss() as sct:
-            monitor = {"top": rect.top, "left": rect.left, "width": rect.w, "height": rect.h}
-            sct_img = sct.grab(monitor)
-            surf = pygame.image.frombytes(sct_img.rgb, sct_img.size, "RGB")
-            return surf
+        self.cameras = {k: dxcam.create(output_color="RGB", output_idx=v) for v, k in enumerate(dxcam.get_output_metadata().keys())}
+        monitor = win32api.GetMonitorInfo(win32api.MonitorFromPoint((0, 0)))
+        self.camera = self.cameras[monitor["Device"]]
+        self.camerapos = monitor["Monitor"][:2]
+        self.lastfarme = None
 
-    def screenshot_tl_br_to_surf(self, tlbr):
-        rect = pygame.Rect(tlbr[0], tlbr[1], tlbr[2]-tlbr[0], tlbr[3]-tlbr[1],)
-        return self.screenshot_rect_to_surf(rect)
+    def screenshot_tl_br_to_surf(self, tlbr, toscreenspace=True):
+        if toscreenspace:
+            tlbr = (int(tlbr[0]-self.camerapos[0]), int(tlbr[1]-self.camerapos[1]),
+                    int(tlbr[2]-self.camerapos[0]), int(tlbr[3]-self.camerapos[1]))
+
+        frame = self.camera.grab(tlbr)
+
+        if frame is not None:
+            self.lastfarme = pygame.transform.rotate(pygame.transform.flip(pygame.surfarray.make_surface(frame), True, False), 90)
+            return True
+
+        return False
+
+    def tomonitorspace(self, rect):
+        rect = pygame.Rect(int(rect[0] - self.camerapos[0]), int(rect[1] - self.camerapos[1]),
+                           int(rect[2]), int(rect[3]))
+
+        return rect.clip(self.camera.region)
 
     def start(self):
         # to select screenshot space press q while mouse at top left corner on game and press e while mouse at bottom left on game board.
@@ -107,13 +121,26 @@ class App:
         if keyboard.is_pressed("e"):
             self.br = pygame.Vector2(win32api.GetCursorPos())
 
-        imgtl = self.screenshot_tl_br_to_surf((self.tl.x-60, self.tl.y-60, *self.tl))
+        monitor = win32api.GetMonitorInfo(win32api.MonitorFromPoint((int(self.tl.x), int(self.tl.y))))
+        self.camera = self.cameras[monitor["Device"]]
+        self.camerapos = monitor["Monitor"][:2]
+
+        self.screenshot_tl_br_to_surf(self.camera.region, False)
+        if self.lastfarme.width < self.camera.width or self.lastfarme.height < self.camera.height:
+            return
+
+        imgtl = pygame.Surface.subsurface(self.lastfarme, self.tomonitorspace((self.tl.x-60, self.tl.y-60, 60, 60)))
         self.screen.blit(imgtl, (0, 0))
 
-        imgbr = self.screenshot_tl_br_to_surf((*self.br, self.br.x + 60, self.br.y + 60))
+        if monitor == win32api.GetMonitorInfo(win32api.MonitorFromPoint((int(self.br.x), int(self.br.y)))):
+            samemonitor = True
+            imgbr = pygame.Surface.subsurface(self.lastfarme, self.tomonitorspace((*self.br, 60, 60)))
+        else:
+            samemonitor = False
+            imgbr = pygame.Surface((60, 60))
         self.screen.blit(imgbr, (80, 0))
 
-        if self.keys((pygame.K_SPACE,))[0] and self.tl.x<self.br.x and self.tl.y<self.br.y:
+        if self.keys((pygame.K_SPACE,))[0] and self.tl.x<self.br.x and self.tl.y<self.br.y and samemonitor:
             self.tlrestore = self.tl
             self.brrestore = self.br
             self.tl = getcorner(imgtl, pygame.Vector2(imgtl.size)-(1, 1), pygame.Vector2(-1, -1)) + self.tl-(60, 60)
@@ -136,7 +163,8 @@ class App:
         # place snake head with left click on board and place snake tail with right click on board.
         # plick back to real game to be in focus and press space to start.
 
-        self.img = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
+        self.screenshot_tl_br_to_surf((*self.tl, *self.br))
+        self.img = self.lastfarme
 
         if self.logical_sizeRect.w!=max(self.img.width, 500) or self.logical_sizeRect.height!=self.img.height+100:
             self.logical_sizeRect.size = (max(self.img.width, 500), self.img.height+100)
@@ -203,8 +231,6 @@ class App:
             pygame.draw.rect(self.screen, "blue", pygame.Rect(tlcorner.x+self.head.x*cellw, tlcorner.y+self.head.y*cellh, round(cellw), round(cellh)), 3, round(cellw/3))
 
         if ready and keyboard.is_pressed("space") and not self.window.focused:
-            self.img = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
-
             self.cellw = cellw
             self.cellh = cellh
 
@@ -237,12 +263,21 @@ class App:
         length = len(self.field.snake.snake)
         steps = self.field.steps
 
+        start = time.perf_counter()
+        update = False
         if self.field.resoult == 0:
-            self.img = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
+            update = self.screenshot_tl_br_to_surf((*self.tl, *self.br))
+            self.img = self.lastfarme
 
-        dir = self.field.update(self.agent, self.img)
+        dir = None
+        if update:
+            dir = self.field.update(self.agent, self.img)
         if dir is not None:
             keyboard.press_and_release(Cell.dirtokeycode(dir))
+
+        t = time.perf_counter() - start
+        if t > 0.01:
+            print(t)
 
         tlcorner = pygame.Vector2(max(self.img.width, 500) // 2 - self.img.width // 2, 100)
         self.screen.fill("black", rect=pygame.Rect(0, 0, self.logical_sizeRect.width, 100))
@@ -264,7 +299,7 @@ class App:
 
         self.screen.blit(self.img, tlcorner)
 
-        if self.field.resoult == 0:
+        if update:
             self.frames.append(self.img)
             if len(self.frames) > 120:
                 self.frames.popleft()
@@ -454,7 +489,7 @@ class App:
                 frame = 0
                 self.window.title = (
                     f"Snake TAS    "
-                    f"FPS: {int(1 / dt)}, {round(self.clock.get_fps(), 1)} "
+                    f"FPS: {int(1 / dt):>4}, {round(self.clock.get_fps(), 1)} "
                     f"W:{self.window.size[0]} {self.window.size[1]} "
                 )
             frame += 1
