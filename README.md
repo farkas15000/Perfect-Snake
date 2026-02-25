@@ -1,5 +1,8 @@
 # Perfect-Snake
-An algorithm that can play a perfect game of classic snake.
-Includes 3rd party snake game control.
+An algorithm that can play a perfect game of classic snake with the goal of the least amount of moves.
+
+Includes visual debuging snake game engine.
+
+And a TAS (Tool Assisted Seedrun) for the 3rd party Google snake game.
 
 Itch.io live demo: https://farkas15.itch.io/perfect-snake
