@@ -1,3 +1,17 @@
+"""
+TAS usage instructions:
+
+to select screenshot space press q while mouse at top left corner of the game and press e while mouse at bottom left corner of theqe qe  game board.
+after selection press space while focused on TAS window
+use a and d to navigate last game's last 120 frame.
+
+set board width and height while mouse is hovering ower the input field.
+place snake head with left click on board and place snake tail with right click on board.
+click back to real game to be in focus and press space to start game.
+
+press enter to restart setup.
+"""
+
 import platform
 import pygame
 import time
@@ -112,8 +126,8 @@ class App:
         return rect.clip(self.camera.region)
 
     def start(self):
-        # to select screenshot space press q while mouse at top left corner on game and press e while mouse at bottom left on game board.
-        # after selection press space
+        # to select screenshot space press q while mouse at top left corner of the game and press e while mouse at bottom left corner of theqe qe  game board.
+        # after selection press space while focused on TAS window
 
         # use a and d to navigate last game's last 120 frame.
 
@@ -133,8 +147,11 @@ class App:
         if self.lastfarme.width < self.camera.width or self.lastfarme.height < self.camera.height:
             return
 
-        imgtl = pygame.Surface.subsurface(self.lastfarme, self.tomonitorspace((self.tl.x-60, self.tl.y-60, 60, 60)))
-        self.screen.blit(imgtl, (0, 0))
+        try:
+            imgtl = pygame.Surface.subsurface(self.lastfarme, self.tomonitorspace((self.tl.x-60, self.tl.y-60, 60, 60)))
+            self.screen.blit(imgtl, (0, 0))
+        except ValueError:
+            return
 
         if monitor == win32api.GetMonitorInfo(win32api.MonitorFromPoint((int(self.br.x), int(self.br.y)))):
             samemonitor = True
@@ -163,9 +180,9 @@ class App:
             self.screen.blit(self.frames[self.frame%l], (0, 100))
 
     def board(self):
-        # set board width and height while mouse is hovering ower it.
+        # set board width and height while mouse is hovering ower the input field.
         # place snake head with left click on board and place snake tail with right click on board.
-        # plick back to real game to be in focus and press space to start.
+        # click back to real game to be in focus and press space to start game.
 
         self.screenshot_tl_br_to_surf((*self.tl, *self.br))
         self.img = self.lastfarme
@@ -181,12 +198,12 @@ class App:
 
         fieldwprev = self.fieldw
         if pygame.Rect(8, 17, 100, 32).collidepoint(self.mousePos[1]):
-            self.fieldw = self.inputToNum(self.fieldw, 0, 100)
+            self.fieldw = self.inputToNum(self.fieldw, 0, 30)
         pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8, 17, 100, 32))
 
         fieldhprev = self.fieldh
         if pygame.Rect(8+110, 17, 100, 32).collidepoint(self.mousePos[1]):
-            self.fieldh = self.inputToNum(self.fieldh, 0, 100)
+            self.fieldh = self.inputToNum(self.fieldh, 0, 30)
         pygame.draw.rect(self.screen, (25, 25, 25), pygame.Rect(8+110, 17, 100, 32))
 
         widthimg = self.font.render("W: "+str(self.fieldw), False, "white", None).convert_alpha()
@@ -259,7 +276,7 @@ class App:
             App.state = "start"
 
     def game(self):
-        # press enter to restart setup
+        # press enter to restart setup.
 
         if keyboard.is_pressed("esc"):
             self.quit()
@@ -300,6 +317,8 @@ class App:
         for cell in self.field.snake.snake:
             pygame.draw.rect(self.img, (15, 80, 255, 255), pygame.Rect(cell.x * self.cellw,cell.y * self.cellh, round(self.cellw), round(self.cellh)), 3, round(self.cellw / 3))
         pygame.draw.rect(self.img, "blue", pygame.Rect(self.field.snake.head.x * self.cellw, self.field.snake.head.y * self.cellh, round(self.cellw), round(self.cellh)), 3, round(self.cellw / 3))
+
+        self.agent.draw_debug(self.img, Cell(0, 0), self.cellw, self.fieldw, self.fieldh)
 
         self.screen.blit(self.img, tlcorner)
 

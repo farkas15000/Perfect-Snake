@@ -41,7 +41,7 @@ class App:
         if not self.web:
             self.winResolution = 800, 900
         else:
-            self.winResolution = 400, 450
+            self.winResolution = 640, 360
 
         pygame.init()
         self.clock = pygame.time.Clock()
@@ -133,7 +133,7 @@ class App:
         if pygame.Rect(8, 17, 102, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "boardW"
         if self.selected == "boardW":
-            self.boardW = self.inputToNum(self.boardW, 0, 100)
+            self.boardW = self.inputToNum(self.boardW, 0, 100 if not self.web else 18)
         pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "boardW" else (25, 25, 25), pygame.Rect(8, 17, 102, 32))
         widthimg = self.font.render("W: " + str(self.boardW), False, "white", None).convert_alpha()
         self.screen.blit(widthimg, (10, 20))
@@ -142,7 +142,7 @@ class App:
         if pygame.Rect(8 + 108, 17, 98, 32).collidepoint(self.mousePos[1]) and self.mouse[1][0]:
             self.selected = "boardH"
         if self.selected == "boardH":
-            self.boardH = self.inputToNum(self.boardH, 0, 100)
+            self.boardH = self.inputToNum(self.boardH, 0, 100 if not self.web else 18)
         pygame.draw.rect(self.screen, (60, 60, 60) if self.selected == "boardH" else (25, 25, 25), pygame.Rect(8 + 108, 17, 98, 32))
         heightimg = self.font.render("H: " + str(self.boardH), False, "white", None).convert_alpha()
         self.screen.blit(heightimg, (10 + 108, 20))
