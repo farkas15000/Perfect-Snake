@@ -10,7 +10,8 @@ import pygame
 from board import Board, Cell, Snake
 from baseagent import BaseAgent
 
-from perfect_agent import PerfectAgent as Agent
+#from perfect_agent import PerfectAgent as Agent
+from black_and_white_agent import BWAgent as Agent
 
 
 class App:
