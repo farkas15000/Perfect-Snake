@@ -1,14 +1,43 @@
 import heapq
 from collections import deque
+import pygame
 
 from board import Board, Cell, Snake
 from baseagent import BaseAgent
+
+
+def makenonloopmasks():
+    masks = set()
+    nonloopmasks = [[[1, 0, 0], [0, 1, 0], [0, 0, 0]]]
+    nonloopmasks.extend([[a, 1, b], [0, 1, 0], [0, 0, 0]] for a in (0, 1) for b in (0, 1))
+    nonloopmasks.extend([[a, 1, b], [0, 1, 1], [0, 0, c]] for a in (0, 1) for b in (0, 1) for c in (0, 1))
+    nonloopmasks.extend([[a, 1, b], [0, 1, 1], [d, 1, c]] for a in (0, 1) for b in (0, 1) for c in (0, 1) for d in (0, 1))
+    for r in range(4):
+        for mask in nonloopmasks:
+            masks.add(tuple(tuple(tuple(x for x in row) for row in mask)))
+        for mask in nonloopmasks:
+            n = 3
+            res = [[0] * n for _ in range(n)]
+            for i in range(n):
+                for j in range(n):
+                    res[j][n - i - 1] = mask[i][j]
+            for i in range(n):
+                for j in range(n):
+                    mask[i][j] = res[i][j]
+
+    return masks
+
 
 class BWAgent(BaseAgent):
     def __init__(self, board: Board):
         super().__init__(board)
         self.steps = []
         self.iter = 0
+
+        self.grid = Grid(self.w+1, self.h+1)
+
+        self.grid.set((1, 1), 1)
+        self.grid.set((2, 1), 1)
 
     def getDirection(self):
 
@@ -24,6 +53,168 @@ class BWAgent(BaseAgent):
         self.iter += 1
 
         return dir
+
+    def draw_debug(self, screen, tlcorner, cellsize, w, h):
+        arearect = pygame.Rect(tlcorner[0], tlcorner[1], w*cellsize, h*cellsize)
+        for x in range(w+1):
+            for y in range(h+1):
+                rect = pygame.Rect(tlcorner.x + x * cellsize-cellsize/2, tlcorner.y + y * cellsize-cellsize/2, cellsize, cellsize)
+                rect.scale_by_ip(0.6, 0.6)
+                rect = rect.clip(arearect)
+
+                if (cell:= self.grid.at(x, y)[0]) != 0:
+                    if cell == 1:
+                        color = "White"
+                    elif cell >= 2:
+                        color = "Black"
+                    else:
+                        color = "Black"
+
+                    pygame.draw.rect(screen, color, rect)
+
+class Grid:
+    """
+    https://web.mit.edu/8.592/www/grades/projects/projects(2013)/MichaelCrossley.pdf
+    """
+    nonloopmasks = makenonloopmasks()
+    illegals = {((1, 0), (0, 1)), ((0, 1), (1, 0)), ((1, 1), (1, 1)), ((0, 0), (0, 0))}
+    sidewalk3x3 = [(-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0)]
+
+    def __init__(self, w, h):
+        # grid size includes exterior edge
+        self.w = w
+        self.h = h
+        self.area = w * h
+        self.odd = w % 2 == 1 and h % 2 == 1
+
+        self.unconnectedCount = 0  # counted in negative!
+        self.unconnectedDict = {0: 0, }
+
+        """0 = empty, 1 = white, >=2 =  black connected, <=-1 = black unconnected"""
+        self.grid = [[0 for x in range(self.w)] for y in range(self.h)]
+
+        for x in range(self.w):
+            self.grid[x][0] = 2
+            self.grid[x][self.h-1] = 2
+        for y in range(self.h):
+            self.grid[0][y] = 2
+            self.grid[self.w-1][y] = 2
+
+    def at(self, x, y):
+        """
+        return virtual group, real grid group
+        """
+        conn = self.grid[x][y]
+        if conn in self.unconnectedDict:
+            return self.unconnectedDict[conn], conn
+        else:
+            return conn, conn
+
+    def set(self, xy, value):
+        self.grid[xy[0]][xy[1]] = value
+
+    def checkselfloopconection(self, xy):
+        """
+        return true if black would not create a loop, else false
+        """
+        #todo align with new cell value numbering
+        connpoints = dict()
+
+        x, y = xy
+        for k, oxy in enumerate(self.sidewalk3x3):
+            ox, oy = oxy
+            cx, cy = x + ox, y + oy
+            conn = self.at(cx, cy)[0]
+            if conn != 0:
+                if conn not in connpoints:
+                    connpoints[conn] = [(ox+1, oy+1)]
+                else:
+                    connpoints[conn].append((ox+1, oy+1))
+
+        for points in connpoints.values():
+            mask = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+            for point in points:
+                mask[point[0]][point[1]] = 1
+
+            mask = tuple(tuple(tuple(x for x in row) for row in mask))
+
+            if mask not in self.nonloopmasks:
+                return False
+
+        return True
+
+    def checksubgrids(self, xy, offsets):
+        """
+        return true if legal in subgrid else false
+        """
+        # todo align with new cell value numbering
+        x, y = xy
+        for offset in offsets:
+            ox, oy = offset
+            cx, cy = x+ox, y+oy
+            subgrid = ((self.at(cx, cy)[0], self.at(cx+1, cy)[0]),
+                       (self.at(cx, cy+1)[0], self.at(cx+1, cy+1)[0]))
+
+            if subgrid in self.illegals:
+                return False
+
+        return True
+
+    def whiteplace(self, xy):
+        self.set(xy, 1)
+
+    def blackplace(self, xy):
+
+        self.set(xy, 1)
+        excheck = self.checkexternalconnections(xy)
+        if not excheck[0]:
+            raise Exception("Not possible, boundary connections merge", xy)
+
+        if excheck[1] is not None: # found connection, connect everything
+            self.set(xy, excheck[1])
+            self.connectCons(xy)
+
+        elif excheck[3] is not None: # found unconnections, connect them
+            self.set(xy, excheck[3])
+            self.connectCons(xy)
+
+        else: # new unconnected created
+            self.unconnectedCount -= 1
+            self.unconnectedDict[self.unconnectedCount] = self.unconnectedCount
+
+            self.set(xy, self.unconnectedCount)
+
+    def connectCons(self, xy):
+        conn = self.at(*xy)[0]
+        x, y = xy
+        for k, oxy in enumerate(self.sidewalk3x3):
+            ox, oy = oxy[0]+x, oxy[1]+y
+            unconn = self.at(ox, oy)
+            if unconn[0] < 0 and unconn[0]!=conn:
+                for ck, v in self.unconnectedDict.items():
+                    if v == unconn[0]:
+                        self.unconnectedDict[ck] = conn
+
+    def checkexternalconnections(self, xy, cross=False):
+        """
+        return tuple(true if conns <2, conn int if only 1 else None, true if all unconns unique, max unconn int if any)
+        """
+        connections = set()
+        unconnections = []
+        x, y = xy
+        for k, oxy in enumerate(self.sidewalk3x3 if not cross else ((0, -1), (-1, 0), (0, 1), (1, 0))):
+            ox, oy = oxy
+            conn = self.at(x + ox, y + oy)
+            if conn[0] > 0:
+                connections.add(conn[0])
+            elif conn[0] < 0:
+                    unconnections.append(conn[0])
+
+        connectionslen = len(connections)
+        unconnectionslen = len(unconnections)
+        return (connectionslen<2, connections.pop() if connectionslen == 1 else None,
+                unconnectionslen == len(set(unconnections)), max(unconnections) if unconnectionslen else None)
+
 
 class Node:
     finished = None
