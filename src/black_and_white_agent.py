@@ -1,4 +1,5 @@
 import heapq
+from copy import deepcopy
 from collections import deque
 import pygame
 
@@ -38,10 +39,6 @@ class BWAgent(BaseAgent):
 
         self.grid.set((1, 1), 1)
         self.grid.set((2, 1), 1)
-        self.grid.printgrid()
-
-
-        print(self.grid.tryBlackplace((5, 1)))
         self.grid.printgrid()
 
     def getDirection(self):
@@ -85,7 +82,7 @@ class Grid:
     illegals = {((1, 0), (0, 1)), ((0, 1), (1, 0)), ((1, 1), (1, 1)), ((0, 0), (0, 0))}
     sidewalk3x3 = [(-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0)]
 
-    def __init__(self, w, h):
+    def __init__(self, w, h, generate=True):
         # grid size includes exterior edge
         self.w = w
         self.h = h
@@ -93,17 +90,31 @@ class Grid:
         self.odd = w % 2 == 1 and h % 2 == 1
 
         self.unconnectedCount = 0  # counted in negative!
-        self.unconnectedDict = {0: 0, }
+        self.unconnectedDict = dict()
 
         """0 = empty, 1 = white, >=2 =  black connected, <=-1 = black unconnected"""
+        self.grid = None
+
+        if generate:
+            self._init()
+
+    def _init(self):
         self.grid = [[0 for x in range(self.w)] for y in range(self.h)]
 
         for x in range(self.w):
             self.grid[x][0] = 2
-            self.grid[x][self.h-1] = 2
+            self.grid[x][self.h - 1] = 2
         for y in range(self.h):
             self.grid[0][y] = 2
-            self.grid[self.w-1][y] = 2
+            self.grid[self.w - 1][y] = 2
+
+    def copy(self):
+        grid =  Grid(self.w, self.h, False)
+        grid.grid = deepcopy(self.grid)
+        grid.unconnectedDict = self.unconnectedDict.copy()
+        grid.unconnectedCount = self.unconnectedCount
+
+        return grid
 
     def at(self, x, y):
         """
@@ -178,8 +189,11 @@ class Grid:
             return 1
 
     def tryWhiteplace(self, xy):
-        if self.at(xy[0], xy[1])[0] == 1:
+        conn = self.at(xy[0], xy[1])[0]
+        if conn == 1:
             return True
+        if conn != 0:
+            return False
 
         if self.checksubgrids(xy, black=False) and self.checkselfloopconection(xy, black=False):
             self.whiteplace(xy)
@@ -190,8 +204,10 @@ class Grid:
         self.set(xy, 1)
 
     def tryBlackplace(self, xy):
-        if (cell:=self.at(xy[0], xy[1])[0]) != 0 and cell != 1:
+        if (conn:=self.at(xy[0], xy[1])[0]) != 0 and conn != 1:
             return True
+        if conn != 0:
+            return False
 
         if self.checksubgrids(xy, black=True) and self.checkselfloopconection(xy, black=True):
             self.blackplace(xy)
@@ -251,16 +267,25 @@ class Grid:
                 unconnectionslen == len(set(unconnections)), max(unconnections) if unconnectionslen else None)
 
     def printgrid(self):
-        print("-" * (self.w * 3 + 2))
+        print(self.unconnectedDict)
+        print("-virtual" + "-" * (self.w * 3 + 2-8) + "    -real conn" + "-" * (self.w * 3 + 2-10))
         for x in range(self.w):
             print("|", end="")
             for y in range(self.h):
                 print(f"{self.at(y, x)[0]:>2}", end=' ')
+            print(f"|{x}", end="   ")
+
+            print("|", end="")
+            for y in range(self.h):
+                print(f"{self.at(y, x)[1]:>2}", end=' ')
             print(f"|{x}", end="")
 
             print()
-        print("-" * (self.w * 3 + 2))
+        print("-" * (self.w * 3 + 2) + "    " + "-" * (self.w * 3 + 2))
 
+        for x in range(self.w):
+            print(f" {x:>2}", end="")
+        print("      ", end="")
         for x in range(self.w):
             print(f" {x:>2}", end="")
 
