@@ -38,6 +38,11 @@ class BWAgent(BaseAgent):
 
         self.grid.set((1, 1), 1)
         self.grid.set((2, 1), 1)
+        self.grid.printgrid()
+
+
+        print(self.grid.tryBlackplace((5, 1)))
+        self.grid.printgrid()
 
     def getDirection(self):
 
@@ -113,11 +118,10 @@ class Grid:
     def set(self, xy, value):
         self.grid[xy[0]][xy[1]] = value
 
-    def checkselfloopconection(self, xy):
+    def checkselfloopconection(self, xy, black=True):
         """
-        return true if black would not create a loop, else false
+        return true if conn color would not create a loop, else false
         """
-        #todo align with new cell value numbering
         connpoints = dict()
 
         x, y = xy
@@ -125,7 +129,7 @@ class Grid:
             ox, oy = oxy
             cx, cy = x + ox, y + oy
             conn = self.at(cx, cy)[0]
-            if conn != 0:
+            if (black and (conn < 0 or conn > 1)) or (not black and conn == 1):
                 if conn not in connpoints:
                     connpoints[conn] = [(ox+1, oy+1)]
                 else:
@@ -143,25 +147,56 @@ class Grid:
 
         return True
 
-    def checksubgrids(self, xy, offsets):
+    def checksubgrids(self, xy, black:bool):
         """
         return true if legal in subgrid else false
         """
-        # todo align with new cell value numbering
+        conn = self.at(xy[0], xy[1])[0]
+        self.set((xy[0], xy[1]), 2 if black else 1)
+
         x, y = xy
+        offsets = ((-1, -1), (0, -1), (-1, 0), (0, 0))
         for offset in offsets:
             ox, oy = offset
             cx, cy = x+ox, y+oy
-            subgrid = ((self.at(cx, cy)[0], self.at(cx+1, cy)[0]),
-                       (self.at(cx, cy+1)[0], self.at(cx+1, cy+1)[0]))
+            subgrid = ((self.conToBWE(self.at(cx, cy)[0]), self.conToBWE(self.at(cx+1, cy)[0])),
+                       (self.conToBWE(self.at(cx, cy+1)[0]), self.conToBWE(self.at(cx+1, cy+1)[0])))
 
             if subgrid in self.illegals:
+                self.set((xy[0], xy[1]), conn)
                 return False
 
+        self.set((xy[0], xy[1]), conn)
         return True
+
+    def conToBWE(self, conn):
+        if conn == 1:
+            return 0
+        elif conn == 0:
+            return -1
+        else:
+            return 1
+
+    def tryWhiteplace(self, xy):
+        if self.at(xy[0], xy[1])[0] == 1:
+            return True
+
+        if self.checksubgrids(xy, black=False) and self.checkselfloopconection(xy, black=False):
+            self.whiteplace(xy)
+            return True
+        return False
 
     def whiteplace(self, xy):
         self.set(xy, 1)
+
+    def tryBlackplace(self, xy):
+        if (cell:=self.at(xy[0], xy[1])[0]) != 0 and cell != 1:
+            return True
+
+        if self.checksubgrids(xy, black=True) and self.checkselfloopconection(xy, black=True):
+            self.blackplace(xy)
+            return True
+        return False
 
     def blackplace(self, xy):
 
@@ -204,16 +239,33 @@ class Grid:
         x, y = xy
         for k, oxy in enumerate(self.sidewalk3x3 if not cross else ((0, -1), (-1, 0), (0, 1), (1, 0))):
             ox, oy = oxy
-            conn = self.at(x + ox, y + oy)
-            if conn[0] > 0:
-                connections.add(conn[0])
-            elif conn[0] < 0:
-                    unconnections.append(conn[0])
+            conn = self.at(x + ox, y + oy)[0]
+            if conn >= 2:
+                connections.add(conn)
+            elif conn < 0:
+                    unconnections.append(conn)
 
         connectionslen = len(connections)
         unconnectionslen = len(unconnections)
         return (connectionslen<2, connections.pop() if connectionslen == 1 else None,
                 unconnectionslen == len(set(unconnections)), max(unconnections) if unconnectionslen else None)
+
+    def printgrid(self):
+        print("-" * (self.w * 3 + 2))
+        for x in range(self.w):
+            print("|", end="")
+            for y in range(self.h):
+                print(f"{self.at(y, x)[0]:>2}", end=' ')
+            print(f"|{x}", end="")
+
+            print()
+        print("-" * (self.w * 3 + 2))
+
+        for x in range(self.w):
+            print(f" {x:>2}", end="")
+
+        print()
+        print()
 
 
 class Node:
