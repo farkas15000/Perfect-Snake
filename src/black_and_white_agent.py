@@ -45,11 +45,15 @@ class BWAgent(BaseAgent):
 
         if self.iter == len(self.steps):
             self.iter = 0
-            origin = Step(self.snake.copy(), None, False, self.food)
+            origin = Step(self.snake, self.grid, None, False, self.food)
             self.steps = Step.A_star(origin, None, True, 0, False)
+            finished: Step = Step.finished
+            self.grid = finished.grid
 
             if self.steps is None:
                 return Cell.reversedir(self.snake.direction)
+            else:
+                self.grid = finished.grid
 
         dir = self.steps[self.iter].dir
         self.iter += 1
@@ -181,12 +185,25 @@ class Grid:
         return True
 
     def conToBWE(self, conn):
+        """
+        white = 0, black = 1, empty = -1
+        """
         if conn == 1:
             return 0
         elif conn == 0:
             return -1
         else:
             return 1
+
+    def tryplaceBWE(self, xy, conn):
+        """
+        white = 0, black = 1
+        """
+        if conn == 0:
+            return self.tryWhiteplace(xy)
+        elif conn == 1:
+            return self.tryBlackplace(xy)
+        raise Exception("incorect conn")
 
     def tryWhiteplace(self, xy):
         conn = self.at(xy[0], xy[1])[0]
@@ -376,10 +393,20 @@ class Node:
         return None
 
 class Step(Node):
-    def __init__(self, snake, dir, move, target):
+    """
+    forwardmasks = ((0, 1),
+                    (0, 1))
+    leftmasks = ((1, 1),
+                 (0, 1))
+    rightmasks = ((0, 0),
+                  (0, 1))
+    """
+
+    def __init__(self, snake, grid, dir, move, target):
         super().__init__()
 
         self.snake: Snake = snake
+        self.grid: Grid = grid
         self.dir: Cell = dir if dir is not None else self.snake.direction
         self.target: Cell = target
 
@@ -400,12 +427,79 @@ class Step(Node):
                 dir = Cell.leftturn(dir)
             if not leftturn:
                 dir = Cell.rightturn(dir)
+        #dirnum = Cell.dirtonum(dir)
+        basedirnum = Cell.dirtonum(self.dir)
 
         if self.snake.lookat(self.snake.nexthead(dir)) != Snake.BODY:
-            snake = Snake.copy(self.snake)
-            snake.applydir(dir)
+            pass
+            #self.grid.printgrid()
+            #print(self.snake.head)
 
-            self.children[Step(snake, dir, False, self.target)] = 1
+            backleftpos = self.celldirgridconverter(self.snake.head, basedirnum, 0)
+            atbackleft = self.grid.conToBWE(self.grid.at(*backleftpos)[0])
+            if atbackleft==-1:
+                raise Exception("no left color")
+            invert = atbackleft == 1
+
+            frontleftpos = self.celldirgridconverter(self.snake.head, basedirnum, 1)
+            frontrightpos = self.celldirgridconverter(self.snake.head, basedirnum, 2)
+
+            grid = Grid(self.grid.w, self.grid.h)
+            self.gridsnakecopy(grid, invert)
+
+
+            if leftturn is None:
+                turnmask = (0, 1)
+            elif leftturn:
+                turnmask = (1, 1)
+            else:
+                turnmask = (0, 0)
+
+            if grid.tryplaceBWE(frontleftpos, turnmask[0] if not invert else not turnmask[0]):
+                if grid.tryplaceBWE(frontrightpos, turnmask[1] if not invert else not turnmask[1]):
+                    snake = Snake.copy(self.snake)
+                    snake.applydir(dir)
+
+                    #grid.printgrid()
+                    #print(snake.head)
+
+                    self.children[Step(snake, grid, dir, False, self.target)] = 1
+
+    def celldirgridconverter(self, cell, basedirnum, i):
+        """
+        i = 0 backleft, i = 1 frontleft, i = 2 frontright, i = 3 backright
+        """
+        offsets = ((1, 1), (0, 1), (0, 0), (1, 0))
+        offset = offsets[(basedirnum+i)%4]
+
+        return cell.x+offset[0], cell.y+offset[1]
+
+    def gridsnakecopy(self, grid, invert):
+        body0 = iter(self.snake)
+        body1 = iter(self.snake)
+        prevdirnum = None
+        next(body1)
+        while (cell0 := next(body0, None)) is not None:
+            cell1 = next(body1, None)
+            if cell1 is None:
+                break
+
+            dirnum = Cell.dirtonum(cell0.dirto(cell1))
+            if prevdirnum is not None and prevdirnum != dirnum:
+                leftturn = (prevdirnum+3)%4==dirnum
+                backcornerpos = self.celldirgridconverter(cell0, dirnum, 3 if leftturn else 0)
+                if not grid.tryplaceBWE(backcornerpos, leftturn if not invert else not leftturn):
+                    raise Exception("not possible")
+
+            prevdirnum = dirnum
+            frontleftpos = self.celldirgridconverter(cell0, dirnum, 1)
+            frontrightpos = self.celldirgridconverter(cell0, dirnum, 2)
+
+            if not grid.tryplaceBWE(frontleftpos, 0 if not invert else 1):
+                raise Exception("not possible")
+            if not grid.tryplaceBWE(frontrightpos, 1 if not invert else 0):
+                raise Exception("not possible")
+
 
     def neighbors(self, seen):
         if self.generated: return self.children.keys()
@@ -431,7 +525,11 @@ class Step(Node):
         return dcomp > 0
 
     def failpoint(self, openSetSize, gScoreSize, checks):
-        return checks > self.snake.w*self.snake.h * 2
+        fail = checks > self.snake.w*self.snake.h * 200
+        if fail:
+            print("fail point reached!")
+            pass
+        return fail
 
 
 def compls(a, b):

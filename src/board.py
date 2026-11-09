@@ -271,13 +271,16 @@ class Snake:
     def __len__(self):
         return len(self.snake)
 
+    def __iter__(self):
+        return iter(self.snake)
+
     def print(self, food: Cell):
         print("/"+"--"*self.w+"\\")
 
         for y in range(self.h):
             row = "|"
             for x in range(self.w):
-                cell = " "
+                cell = "·"
                 if food.eq(x, y): cell = "O"
                 if f"({x}, {y})" in self.cells: cell = "#"
                 if self.head.eq(x, y): cell = "@"
