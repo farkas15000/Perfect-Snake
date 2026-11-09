@@ -48,7 +48,6 @@ class BWAgent(BaseAgent):
             origin = Step(self.snake, self.grid, None, False, self.food)
             self.steps = Step.A_star(origin, None, True, 0, False)
             finished: Step = Step.finished
-            self.grid = finished.grid
 
             if self.steps is None:
                 return Cell.reversedir(self.snake.direction)
@@ -195,14 +194,50 @@ class Grid:
         else:
             return 1
 
-    def tryplaceBWE(self, xy, conn):
+    def tryplaceBWE(self, xy, conn, recursive=False):
         """
         white = 0, black = 1
         """
+        def recurs(xy):
+            x, y = xy
+            for offset in self.sidewalk3x3:
+                ox, oy = offset
+                cx, cy = x+ox, y+oy
+
+                if self.at(cx, cy)[0]==0:
+                    black = self.checksubgrids((cx, cy), black=True)
+                    white = self.checksubgrids((cx, cy), black=False)
+
+                    if white and not black:
+                        if not self.tryplaceBWE((cx, cy), 0, True):
+                            #raise Exception("shouldnt happen")
+                            return False
+                    elif black and not white:
+                        if not self.tryplaceBWE((cx, cy), 1, True):
+                            #raise Exception("shouldnt happen")
+                            return False
+                    elif not self.checkselfloopconection((cx, cy), black=True):
+                        if not self.tryplaceBWE((cx, cy), 0, True):
+                            #raise Exception("shouldnt happen")
+                            return False
+            return True
+
+
+        empty = self.at(*xy)[0]==0
+        recu = True
+
         if conn == 0:
-            return self.tryWhiteplace(xy)
+            res = self.tryWhiteplace(xy)
+            if recursive and empty and res:
+                recu = recurs(xy)
+
+            return res and recu
         elif conn == 1:
-            return self.tryBlackplace(xy)
+            res = self.tryBlackplace(xy)
+            if recursive and empty and res:
+                recu = recurs(xy)
+
+            return res and recu
         raise Exception("incorect conn")
 
     def tryWhiteplace(self, xy):
@@ -212,7 +247,7 @@ class Grid:
         if conn != 0:
             return False
 
-        if self.checksubgrids(xy, black=False) and self.checkselfloopconection(xy, black=False):
+        if self.checksubgrids(xy, black=False):# todo fix white loop formation (incorrect): and self.checkselfloopconection(xy, black=False):
             self.whiteplace(xy)
             return True
         return False
@@ -445,25 +480,24 @@ class Step(Node):
             frontrightpos = self.celldirgridconverter(self.snake.head, basedirnum, 2)
 
             grid = Grid(self.grid.w, self.grid.h)
-            self.gridsnakecopy(grid, invert)
+            if self.gridsnakecopy(grid, invert):
 
+                if leftturn is None:
+                    turnmask = (0, 1)
+                elif leftturn:
+                    turnmask = (1, 1)
+                else:
+                    turnmask = (0, 0)
 
-            if leftturn is None:
-                turnmask = (0, 1)
-            elif leftturn:
-                turnmask = (1, 1)
-            else:
-                turnmask = (0, 0)
+                if grid.tryplaceBWE(frontleftpos, turnmask[0] if not invert else not turnmask[0], True):
+                    if grid.tryplaceBWE(frontrightpos, turnmask[1] if not invert else not turnmask[1], True):
+                        snake = Snake.copy(self.snake)
+                        snake.applydir(dir)
 
-            if grid.tryplaceBWE(frontleftpos, turnmask[0] if not invert else not turnmask[0]):
-                if grid.tryplaceBWE(frontrightpos, turnmask[1] if not invert else not turnmask[1]):
-                    snake = Snake.copy(self.snake)
-                    snake.applydir(dir)
+                        #grid.printgrid()
+                        #print(snake.head)
 
-                    #grid.printgrid()
-                    #print(snake.head)
-
-                    self.children[Step(snake, grid, dir, False, self.target)] = 1
+                        self.children[Step(snake, grid, dir, False, self.target)] = 1
 
     def celldirgridconverter(self, cell, basedirnum, i):
         """
@@ -488,18 +522,23 @@ class Step(Node):
             if prevdirnum is not None and prevdirnum != dirnum:
                 leftturn = (prevdirnum+3)%4==dirnum
                 backcornerpos = self.celldirgridconverter(cell0, dirnum, 3 if leftturn else 0)
-                if not grid.tryplaceBWE(backcornerpos, leftturn if not invert else not leftturn):
-                    raise Exception("not possible")
+                if not grid.tryplaceBWE(backcornerpos, leftturn if not invert else not leftturn, True):
+                    #raise Exception("not possible")
+                    return False
 
             prevdirnum = dirnum
             frontleftpos = self.celldirgridconverter(cell0, dirnum, 1)
             frontrightpos = self.celldirgridconverter(cell0, dirnum, 2)
 
-            if not grid.tryplaceBWE(frontleftpos, 0 if not invert else 1):
-                raise Exception("not possible")
-            if not grid.tryplaceBWE(frontrightpos, 1 if not invert else 0):
-                raise Exception("not possible")
+            if not grid.tryplaceBWE(frontleftpos, 0 if not invert else 1, True):
+                #raise Exception("not possible")
+                return False
 
+            if not grid.tryplaceBWE(frontrightpos, 1 if not invert else 0, True):
+                #raise Exception("not possible")
+                return False
+
+        return True
 
     def neighbors(self, seen):
         if self.generated: return self.children.keys()
