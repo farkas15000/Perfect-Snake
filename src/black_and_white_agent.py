@@ -203,7 +203,7 @@ class Grid:
         else: # == 0
             return EMPTY
 
-    def tryplaceBWE(self, xy, color, recursive=False):
+    def tryPlaceBW(self, xy, color, recursive=False):
         """
         white = 1, black = 0
         """
@@ -212,94 +212,67 @@ class Grid:
             for offset in self.sidewalk3x3:
                 ox, oy = offset
                 cx, cy = x+ox, y+oy
+                cxy = cx, cy
 
                 if self.at(cx, cy)[0]==0:
-                    black = self.checksubgrids((cx, cy), black=True)
-                    white = self.checksubgrids((cx, cy), black=False)
+                    black = self.checksubgrids(cxy, black=True)
+                    white = self.checksubgrids(cxy, black=False)
 
                     if white and not black:
-                        if not self.tryplaceBWE((cx, cy), WHITE, True):
+                        if not self.tryPlaceBW(cxy, WHITE, True):
                             #raise Exception("shouldnt happen")
                             return False
                     elif black and not white:
-                        if not self.tryplaceBWE((cx, cy), BLACK, True):
+                        if not self.tryPlaceBW(cxy, BLACK, True):
                             #raise Exception("shouldnt happen")
                             return False
-                    elif not self.checkselfloopconection((cx, cy), black=True):
-                        if not self.tryplaceBWE((cx, cy), WHITE, True):
+                    elif not self.checkselfloopconection(cxy, black=True):
+                        if not self.tryPlaceBW(cxy, WHITE, True):
                             #raise Exception("shouldnt happen")
                             return False
-                    elif not self.checkselfloopconection((cx, cy), black=False):
-                        if not self.tryplaceBWE((cx, cy), BLACK, True):
-                            # raise Exception("shouldnt happen")
+                    elif not self.checkselfloopconection(cxy, black=False):
+                        if not self.tryPlaceBW(cxy, BLACK, True):
+                            #raise Exception("shouldnt happen")
                             return False
             return True
 
+        def placeBW(xy, color):
+            conn = self.connToBWE(self.at(*xy)[0])
+            if conn == color:
+                return True
+            if conn != EMPTY:
+                return False
+
+            if self.checksubgrids(xy, black=color == BLACK) and self.checkselfloopconection(xy, black=color == BLACK):
+                self.placecolor(xy, color)
+                return True
+            return False
 
         empty = self.at(*xy)[0]==0
         recu = True
 
-        if color == WHITE:
-            res = self.tryWhiteplace(xy)
-            if recursive and empty and res:
-                recu = recurs(xy)
+        res = placeBW(xy, color)
+        if recursive and empty and res:
+            recu = recurs(xy)
 
-            return res and recu
-        elif color == BLACK:
-            res = self.tryBlackplace(xy)
-            if recursive and empty and res:
-                recu = recurs(xy)
+        return res and recu
 
-            return res and recu
-        raise Exception("incorect conn")
-
-    def tryWhiteplace(self, xy):
-        conn = self.connToBWE(self.at(*xy)[0])
-        if conn == WHITE:
-            return True
-        if conn != EMPTY:
-            return False
-
-        if self.checksubgrids(xy, black=False) and self.checkselfloopconection(xy, black=False):
-            self.whiteplace(xy)
-            return True
-        return False
-
-    def whiteplace(self, xy):
-        connection = self.checkconnections(xy, black=False)
+    def placecolor(self, xy, color):
+        connection = self.checkconnections(xy, black=color == BLACK)
 
         if connection is not None:  # found connection, connect everything
             self.set(xy, connection)
             self.connectCons(xy)
 
         else:  # new unconnected created
-            self.whiteUnconnectedCount += 1
-            self.whiteUnconnectedDict[self.whiteUnconnectedCount] = self.whiteUnconnectedCount
-            self.set(xy, self.whiteUnconnectedCount)
-
-    def tryBlackplace(self, xy):
-        conn = self.connToBWE(self.at(*xy)[0])
-        if conn == BLACK:
-            return True
-        if conn != EMPTY:
-            return False
-
-        if self.checksubgrids(xy, black=True) and self.checkselfloopconection(xy, black=True):
-            self.blackplace(xy)
-            return True
-        return False
-
-    def blackplace(self, xy):
-        connection = self.checkconnections(xy, black=True)
-
-        if connection is not None: # found connection, connect everything
-            self.set(xy, connection)
-            self.connectCons(xy)
-
-        else: # new unconnected created
-            self.blackUnconnectedCount -= 1
-            self.blackUnconnectedDict[self.blackUnconnectedCount] = self.blackUnconnectedCount
-            self.set(xy, self.blackUnconnectedCount)
+            if color == WHITE:
+                self.whiteUnconnectedCount += 1
+                self.whiteUnconnectedDict[self.whiteUnconnectedCount] = self.whiteUnconnectedCount
+                self.set(xy, self.whiteUnconnectedCount)
+            else:
+                self.blackUnconnectedCount -= 1
+                self.blackUnconnectedDict[self.blackUnconnectedCount] = self.blackUnconnectedCount
+                self.set(xy, self.blackUnconnectedCount)
 
     def connectCons(self, xy):
         conn = self.at(*xy)[0]
@@ -513,8 +486,8 @@ class Step(Node):
                 else:
                     turnmask = (WHITE, WHITE)
 
-                if grid.tryplaceBWE(frontleftpos, turnmask[0] if not invert else not turnmask[0], True):
-                    if grid.tryplaceBWE(frontrightpos, turnmask[1] if not invert else not turnmask[1], True):
+                if grid.tryPlaceBW(frontleftpos, turnmask[0] if not invert else not turnmask[0], True):
+                    if grid.tryPlaceBW(frontrightpos, turnmask[1] if not invert else not turnmask[1], True):
                         snake = Snake.copy(self.snake)
                         snake.applydir(dir)
 
@@ -536,6 +509,8 @@ class Step(Node):
         body0 = iter(self.snake)
         body1 = iter(self.snake)
         prevdirnum = None
+        next(body0)
+        next(body1)
         next(body1)
 
         while (cell0 := next(body0, None)) is not None:
@@ -547,7 +522,7 @@ class Step(Node):
             if prevdirnum is not None and prevdirnum != dirnum:
                 leftturn = (prevdirnum+3)%4==dirnum
                 backcornerpos = self.celldirgridconverter(cell0, dirnum, 3 if leftturn else 0)
-                if not grid.tryplaceBWE(backcornerpos, (not leftturn) if not invert else leftturn, True):
+                if not grid.tryPlaceBW(backcornerpos, (not leftturn) if not invert else leftturn, True):
                     #raise Exception("not possible")
                     return False
 
@@ -555,11 +530,11 @@ class Step(Node):
             frontleftpos = self.celldirgridconverter(cell0, dirnum, 1)
             frontrightpos = self.celldirgridconverter(cell0, dirnum, 2)
 
-            if not grid.tryplaceBWE(frontleftpos, WHITE if not invert else BLACK, True):
+            if not grid.tryPlaceBW(frontleftpos, WHITE if not invert else BLACK, True):
                 #raise Exception("not possible")
                 return False
 
-            if not grid.tryplaceBWE(frontrightpos, BLACK if not invert else WHITE, True):
+            if not grid.tryPlaceBW(frontrightpos, BLACK if not invert else WHITE, True):
                 #raise Exception("not possible")
                 return False
 
