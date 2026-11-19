@@ -11,7 +11,8 @@ from board import Board, Cell, Snake
 from baseagent import BaseAgent
 
 #from perfect_agent import PerfectAgent as Agent
-from black_and_white_agent import BWAgent as Agent
+#from black_and_white_agent import BWAgent as Agent
+from revers_BW_search_agent import ReverseBWAgent as Agent
 
 
 class App:
@@ -472,7 +473,7 @@ class App:
             #print("saving")
             pass
 
-        settings_deafult = {attar: (getattr(self, attar) if not isinstance(getattr(self, attar), Cell) else (getattr(self, attar).toTouple())) for attar in settings_attars}
+        settings_deafult = {attar: (getattr(self, attar) if not isinstance(getattr(self, attar), Cell) else (getattr(self, attar).toTuple())) for attar in settings_attars}
         with open(save, 'w') as file:
             file.write(json.dumps(settings_deafult, indent=4))
 

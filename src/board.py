@@ -196,6 +196,10 @@ class Snake:
     def __init__(self, snake, cells=None, losttail=None):
         self.snake = deque(snake)
         self.cells = set(cell.toTuple() for cell in snake) if cells is None else cells.copy()
+        self.cellindexes = dict()
+        self.cellindexes[0] = 0
+        self.cellindexes[-1] = len(snake) - 1 if snake[0] is not None else 0
+        self.cellindexes.update({cell.toTuple(): k for k, cell in enumerate(snake)} if snake[0] is not None else {None: 0})
         self.losttail = losttail
 
         self._head: Cell = self.snake.pop()
@@ -237,11 +241,15 @@ class Snake:
         self._head = head
         self.snake.append(head)
         self.cells.add(head.toTuple())
+        self.cellindexes[-1] += 1
+        self.cellindexes[head.toTuple()] = self.cellindexes[-1]
 
     def removeTail(self):
         tail = self.snake.popleft()
         self.losttail = tail
         self.cells.remove(tail.toTuple())
+        self.cellindexes.pop(tail.toTuple())
+        self.cellindexes[0] += 1
 
         self._tail = self.snake.popleft()
         self.snake.appendleft(self._tail)
@@ -254,9 +262,17 @@ class Snake:
         self._tail = self.losttail
         self.snake.appendleft(self.losttail)
         self.cells.add(self.losttail.toTuple())
+        self.cellindexes[0] -= 1
+        self.cellindexes[self.losttail.toTuple()] = self.cellindexes[0]
 
     def in_cells(self, cell):
         return cell.toTuple() in self.cells
+
+    def getcellindex(self, cell):
+        i = self.cellindexes.get(cell.toTuple(), None)
+        if i is None:
+            return -1
+        return self.cellindexes[cell.toTuple()]-self.cellindexes[0]
 
     def lookat(self, cell):
         if not(0 <= cell.x < Snake.w and 0 <= cell.y < Snake.h):
@@ -291,3 +307,6 @@ class Snake:
             print(row)
 
         print("\\" + "--" * self.w + "/")
+
+    def __repr__(self):
+        return f"{self.snake}\n{self.cellindexes}"
