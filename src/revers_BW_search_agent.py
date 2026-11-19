@@ -130,13 +130,15 @@ class Node:
 
 class CellStep(Node):
 
-    def __init__(self, pos, snake, dir, target):
+    def __init__(self, pos, snake, dir, target, beenthere=None):
         super().__init__()
 
         self.pos: Cell = pos
         self.snake: Snake = snake
         self.dir: Cell = dir if dir is not None else self.snake.direction
         self.target: Cell = target
+        self.beenthere:set = beenthere.copy() if beenthere is not None else set()
+        self.beenthere.add(self.pos.toTuple())
 
         self.generated = False
 
@@ -154,9 +156,10 @@ class CellStep(Node):
                 dir = Cell.rightturn(dir)
 
         nextpos = self.pos.copy()+dir
-        if (self.snake.lookat(nextpos) != Snake.BODY
-                or (self.snake.getcellindex(nextpos) < self.depth and self.snake.in_cells(nextpos))):
-            self.children[CellStep(nextpos, self.snake, dir, self.target)] = 1
+        if ((self.snake.lookat(nextpos) != Snake.BODY and nextpos.toTuple() not in self.beenthere)
+                or (self.snake.getcellindex(nextpos) <= self.depth and self.snake.in_cells(nextpos))):
+
+            self.children[CellStep(nextpos, self.snake, dir, self.target, self.beenthere)] = 1
 
     def neighbors(self, seen):
         #print("d", self.depth, " f", self.fScore, "g ",  self.gScore, " h ", self.hScore)
@@ -183,7 +186,7 @@ class CellStep(Node):
         return dcomp > 0
 
     def failpoint(self, openSetSize, gScoreSize, checks):
-        fail = checks > self.snake.w*self.snake.h * 2
+        fail = checks > self.snake.w*self.snake.h * 200
         if fail:
             print("fail point reached!")
             pass
