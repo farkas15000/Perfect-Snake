@@ -73,7 +73,7 @@ class Board:
         for x in range(self.w):
             for y in range(self.h):
                 pos = Cell(x, y)
-                if pos.toString() not in self.snake.cells:
+                if pos.toTuple() not in self.snake.cells:
                     i+=1
                     if i == index:
                         self.food = pos
@@ -90,7 +90,7 @@ class Cell:
     def __repr__(self):
         return self.toString()
 
-    def toTouple(self):
+    def toTuple(self):
         return self.x, self.y
 
     def __add__(self, other):
@@ -195,7 +195,7 @@ class Snake:
 
     def __init__(self, snake, cells=None, losttail=None):
         self.snake = deque(snake)
-        self.cells = set(cell.toString() for cell in snake) if cells is None else cells.copy()
+        self.cells = set(cell.toTuple() for cell in snake) if cells is None else cells.copy()
         self.losttail = losttail
 
         self._head: Cell = self.snake.pop()
@@ -236,12 +236,12 @@ class Snake:
 
         self._head = head
         self.snake.append(head)
-        self.cells.add(head.toString())
+        self.cells.add(head.toTuple())
 
     def removeTail(self):
         tail = self.snake.popleft()
         self.losttail = tail
-        self.cells.remove(tail.toString())
+        self.cells.remove(tail.toTuple())
 
         self._tail = self.snake.popleft()
         self.snake.appendleft(self._tail)
@@ -253,10 +253,10 @@ class Snake:
     def reatachtail(self):
         self._tail = self.losttail
         self.snake.appendleft(self.losttail)
-        self.cells.add(self.losttail.toString())
+        self.cells.add(self.losttail.toTuple())
 
     def in_cells(self, cell):
-        return cell.toString() in self.cells
+        return cell.toTuple() in self.cells
 
     def lookat(self, cell):
         if not(0 <= cell.x < Snake.w and 0 <= cell.y < Snake.h):
