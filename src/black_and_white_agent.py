@@ -218,6 +218,9 @@ class Grid:
                     black = self.checksubgrids(cxy, black=True)
                     white = self.checksubgrids(cxy, black=False)
 
+                    if not white and not black:
+                        return False
+
                     if white and not black:
                         if not self.tryPlaceBW(cxy, WHITE, True):
                             #raise Exception("shouldnt happen")
@@ -496,7 +499,9 @@ class Step(Node):
 
                         self.children[Step(snake, grid, dir, False, self.target)] = 1
 
-    def celldirgridconverter(self, cell, basedirnum, i):
+
+    @staticmethod
+    def celldirgridconverter(cell, basedirnum, i):
         """
         i = 0 backleft, i = 1 frontleft, i = 2 frontright, i = 3 backright
         """
@@ -541,6 +546,7 @@ class Step(Node):
         return True
 
     def neighbors(self, seen):
+        #print("d", self.depth, " f", self.fScore, "g ",  self.gScore, " h ", self.hScore)
         if self.generated: return self.children.keys()
         self.generated = True
 
