@@ -18,14 +18,6 @@ class ReverseBWAgent(BaseAgent):
 
         self.grid = Grid(self.w + 1, self.h + 1)
 
-        self.grid.whiteUnconnectedCount += 1
-        self.grid.whiteUnconnectedDict[self.grid.whiteUnconnectedCount] = self.grid.whiteUnconnectedCount
-
-        self.grid.set((1, 1), 1)
-        self.grid.set((2, 1), 1)
-        self.grid.printgrid()
-
-
     """def getDirection(self):
 
         if self.iter == len(self.steps):
@@ -43,7 +35,7 @@ class ReverseBWAgent(BaseAgent):
 
         return dir"""
 
-    def getDirection(self):
+    """def getDirection(self):
 
         if self.iter == len(self.steps):
             self.iter = 0
@@ -61,6 +53,34 @@ class ReverseBWAgent(BaseAgent):
                     print(Cell.dirtokeycode(Cell.reversedir(x.dir)))
 
         dir = Cell.reversedir(self.steps[self.iter].dir)
+        self.iter += 1
+
+        return dir"""
+
+    def getDirection(self):
+
+        if self.iter == len(self.steps):
+            self.iter = 0
+            guideorigin = CellStep(self.snake.head.copy(), self.snake, None, self.food)
+            guidesteps = CellStep.A_star(guideorigin, None, True, 0, True)
+            if guidesteps is None:
+                raise Exception("No steps found, not possible")
+            guidesteps.reverse()
+            guidelen = len(guidesteps)
+            guidecells = {cell.pos.toTuple(): guidelen-k-1 for k, cell in enumerate(guidesteps)}
+
+            #print(guidecells)
+            #print(self.snake.cellindexes)
+
+            origin = ReverseBWStep(self.food.copy(), self.snake, self.grid.copy(), guidecells, None, self.snake.head.copy(), None, None)
+            origin.startneighbors()
+            self.steps:deque[ReverseBWStep] = ReverseBWStep.A_star(origin, None, True, 0, True)
+
+            for x in self.steps:
+                print(x.dir)
+                print(x.tail)
+
+        dir = self.steps[self.iter].dir
         self.iter += 1
 
         return dir
@@ -517,20 +537,29 @@ class Grid:
 
 class ReverseBWStep(Node):
 
-    def __init__(self, tail,  snake, grid, dir, target, beenthere=None):
+    def __init__(self, tail,  snake, grid, guide,  dir, target, beenthere=None, hScore=None):
         super().__init__()
 
         self.tail:Cell = tail
         self.snake: Snake = snake
         self.grid: Grid = grid
-        self.dir: Cell = dir if dir is not None else self.snake.direction
+        self.guide: dict[tuple[int, int], int] = guide
+        self.dir: Cell = dir
         self.target: Cell = target
         self.beenthere: set = beenthere.copy() if beenthere is not None else set()
         self.beenthere.add(self.tail.toTuple())
 
         self.generated = False
 
-        self.hScore = self.target.distManhattan(self.tail)
+        self.hScore = hScore
+        if self.hScore is None:
+            closest = None
+            dist = float("inf")
+            for cell in self.guide.keys():
+                if (d:=Cell.distManhattan(self.tail, Cell(*cell))) < dist:
+                    dist = d
+                    closest = cell
+            self.hScore = self.guide[closest]+dist
 
         if self.hScore == 0:
             self.satisfied = True
@@ -545,6 +574,12 @@ class ReverseBWStep(Node):
         rightmasks = ((1, 1),
                       (1, 0))
         """
+        if leftturn is None:
+            turnmask = (WHITE, BLACK)
+        elif leftturn:
+            turnmask = (BLACK, BLACK)
+        else:
+            turnmask = (WHITE, WHITE)
 
         dir = self.dir
         if leftturn is not None:
@@ -556,41 +591,32 @@ class ReverseBWStep(Node):
         basedirnum = Cell.dirtonum(self.dir)
 
         nexttail = self.tail.copy() + dir
-        if ((self.snake.lookat(nexttail) != Snake.BODY and nexttail.toTuple() not in self.beenthere)
-                or (self.snake.getcellindex(nexttail) <= self.depth and self.snake.in_cells(nexttail))):
-            #self.grid.printgrid()
-            #print(self.snake.head)
 
-            backleftpos = self.celldirgridconverter(self.snake.head, Cell.dirtonum(self.snake.direction), 0)
-            atbackleft = self.grid.connToBWE(self.grid.at(*backleftpos)[0])
-            if atbackleft==EMPTY:
-                raise Exception("no left color")
-            invert = atbackleft == BLACK
+        closest = None
+        dist = float("inf")
+        for cell in self.guide.keys():
+            if (d := Cell.distManhattan(nexttail, Cell(*cell))) < dist:
+                dist = d
+                closest = cell
+        hScore = self.guide[closest] + dist
+
+        if ((self.snake.lookat(nexttail) != Snake.BODY and nexttail.toTuple() not in self.beenthere)
+                or (self.snake.getcellindex(nexttail) <= hScore and self.snake.in_cells(nexttail)) or hScore == 0):
 
             frontleftpos = self.celldirgridconverter(self.tail, basedirnum, 1)
             frontrightpos = self.celldirgridconverter(self.tail, basedirnum, 2)
 
-            grid:Grid = self.grid.copy()
-            if self.gridsnakecopy(grid, invert):
+            backleftpos = self.celldirgridconverter(self.tail, basedirnum, 0)
+            atbackleft = self.grid.connToBWE(self.grid.at(*backleftpos)[0])
+            if atbackleft == EMPTY:
+                raise Exception("no back left color")
+            invert = atbackleft == BLACK
 
-                if leftturn is None:
-                    turnmask = (WHITE, BLACK)
-                elif leftturn:
-                    turnmask = (BLACK, BLACK)
-                else:
-                    turnmask = (WHITE, WHITE)
+            grid: Grid = self.grid.copy()
+            if grid.tryPlaceBW(frontleftpos, turnmask[0] if not invert else not turnmask[0], True):
+                if grid.tryPlaceBW(frontrightpos, turnmask[1] if not invert else not turnmask[1], True):
 
-                atfrontleft = self.grid.connToBWE(self.grid.at(*frontleftpos)[0])
-                if atbackleft == EMPTY:
-                    raise Exception("no left color")
-                invert = atfrontleft == BLACK
-
-                if grid.tryPlaceBW(frontleftpos, turnmask[0] if not invert else not turnmask[0], True):
-                    if grid.tryPlaceBW(frontrightpos, turnmask[1] if not invert else not turnmask[1], True):
-                        #grid.printgrid(snake, self.target)
-                        #print(snake.head)
-
-                        self.children[ReverseBWStep(nexttail, self.snake, grid, dir, self.target, self.beenthere)] = 1
+                    self.children[ReverseBWStep(nexttail, self.snake, grid, self.guide, dir, self.target, self.beenthere, hScore)] = 1
 
 
     @staticmethod
@@ -644,9 +670,12 @@ class ReverseBWStep(Node):
         return True
 
     def neighbors(self, seen):
-        print("d", self.depth, " f", self.fScore, "g ",  self.gScore, " h ", self.hScore)
-        if self.hScore ==1:
+        #print("d", self.depth, " f", self.fScore, "g ",  self.gScore, " h ", self.hScore)
+        """if self.hScore ==1:
             self.grid.printgrid()
+            print(self.tail, self.dir)
+            self.camefrom.grid.printgrid()
+            pass"""
         if self.generated: return self.children.keys()
         self.generated = True
 
@@ -662,14 +691,25 @@ class ReverseBWStep(Node):
         turnmask = (WHITE, BLACK)
 
         for dir in range(4):
-            self.dir = Cell.numtodir(dir)
-            self.grid = Grid(self.grid.w, self.grid.h)
+            direction = Cell.numtodir(dir)
+            grid = self.grid.copy()
             frontleftpos = self.celldirgridconverter(self.tail, dir, 1)
             frontrightpos = self.celldirgridconverter(self.tail, dir, 2)
             for invert in (False, True):
-                if self.grid.tryPlaceBW(frontleftpos, not turnmask[0] if not invert else turnmask[0], True):
-                    if self.grid.tryPlaceBW(frontrightpos, not turnmask[1] if not invert else turnmask[1], True):
-                        self.neighbor(None, None)
+                if grid.tryPlaceBW(frontleftpos, turnmask[0] if not invert else not turnmask[0], True):
+                    if grid.tryPlaceBW(frontrightpos, turnmask[1] if not invert else not turnmask[1], True):
+
+                        nexttail = self.tail.copy() + direction
+
+                        closest = None
+                        dist = float("inf")
+                        for cell in self.guide.keys():
+                            if (d := Cell.distManhattan(nexttail, Cell(*cell))) < dist:
+                                dist = d
+                                closest = cell
+                        hScore = self.guide[closest] + dist
+
+                        self.children[ReverseBWStep(nexttail, self.snake, grid, self.guide, direction, self.target, self.beenthere, hScore)] = 1
 
         return self.children.keys()
 
@@ -687,7 +727,7 @@ class ReverseBWStep(Node):
         return dcomp > 0
 
     def failpoint(self, openSetSize, gScoreSize, checks):
-        fail = checks > self.snake.w*self.snake.h * 2
+        fail = checks > self.snake.w*self.snake.h * 20
         if fail:
             print("fail point reached!")
             pass
