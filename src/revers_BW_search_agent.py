@@ -572,7 +572,7 @@ class Grid:
 
 class ReverseBWStep(Node):
 
-    def __init__(self, pos,  snake, grid, guide,  dir, target, beenthere=None, hScore=None):
+    def __init__(self, pos,  snake, grid, guide,  dir, target, beenthere=None, hScore=None, prommisedsteps=0):
         super().__init__()
 
         self.pos:Cell = pos
@@ -583,6 +583,7 @@ class ReverseBWStep(Node):
         self.target: Cell = target
         self.beenthere: set = beenthere.copy() if beenthere is not None else set()
         self.beenthere.add(self.pos.toTuple())
+        self.prommisedsteps = prommisedsteps
 
         self.generated = False
 
@@ -639,8 +640,16 @@ class ReverseBWStep(Node):
             return
         #print(self.hScore-hScore)
 
+        promised = False
         if (((notbeenthere:=nextpos.toTuple() not in self.beenthere) and self.snake.lookat(nextpos) != Snake.BODY)
-            or (notbeenthere and self.snake.getcellindex(nextpos) <= hScore and self.snake.in_cells(nextpos)) or hScore == 0):
+            or (promised:=(notbeenthere and self.snake.getcellindex(nextpos) <= hScore and self.snake.in_cells(nextpos))) or hScore == 0):
+
+            prommisedsteps = self.prommisedsteps
+            if promised:
+                prommisedsteps = max(self.prommisedsteps, self.snake.getcellindex(nextpos)+1)
+            if hScore == 0 and prommisedsteps > 0:
+                return
+            prommisedsteps -= 1
 
             if self.depth < len(self.snake):
 
@@ -661,10 +670,10 @@ class ReverseBWStep(Node):
                             if not self.overlapcheck(self.pos, grid, lendiff):
                                 return
 
-                        self.children[ReverseBWStep(nextpos, self.snake, grid, self.guide, dir, self.target, self.beenthere, hScore)] = 1
+                        self.children[ReverseBWStep(nextpos, self.snake, grid, self.guide, dir, self.target, self.beenthere, hScore, prommisedsteps)] = 1
 
             else:
-                self.children[ReverseBWStep(nextpos, self.snake, self.grid, self.guide, dir, self.target, self.beenthere, hScore)] = 1
+                self.children[ReverseBWStep(nextpos, self.snake, self.grid, self.guide, dir, self.target, self.beenthere, hScore, prommisedsteps)] = 1
 
     def overlapcheck(self, pos, grid, lendiff):
         prev:Cell = pos
