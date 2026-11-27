@@ -42,6 +42,11 @@ class ReverseBWAgent(BaseAgent):
             if steps is None:
                 #raise Exception("No steps found, not possible")
                 print("No steps found, not possible")
+                print(list(k for k in reversed(guidecells.keys())))
+                self.grid = Node.best.grid
+                steps = Node.generate_path(Node.best, True)
+                steps.popleft()
+                self.steps = list(Cell.reversedir(step.dir) for step in reversed(steps))
                 return Cell.reversedir(self.snake.direction)
 
             steps.popleft()
@@ -78,6 +83,59 @@ class ReverseBWAgent(BaseAgent):
                         color = "Black"
                     pygame.draw.rect(screen, color, rect)
 
+        if self.steps:
+            orinin =self.snake.head if self.iter == len(self.steps) else self.food
+            prev = orinin.copy()-self.steps[-1]
+            pos = orinin.copy()
+            nextpos = None
+            for k in reversed(range(0, len(self.steps)-1)):
+                self.drawarrows(screen, pygame.Rect(tlcorner.x + pos.x * cellsize, tlcorner.y + pos.y * cellsize, cellsize, cellsize), prev, pos, nextpos)
+                nextpos = pos
+                pos = prev
+                prev = prev.copy() - self.steps[k]
+
+            self.drawarrows(screen, pygame.Rect(tlcorner.x + pos.x * cellsize, tlcorner.y + pos.y * cellsize, cellsize, cellsize), prev, pos, nextpos)
+            nextpos = pos
+            pos = prev
+            prev = None
+            self.drawarrows(screen, pygame.Rect(tlcorner.x + pos.x * cellsize, tlcorner.y + pos.y * cellsize, cellsize, cellsize), prev, pos, nextpos)
+
+    COLOR = (163, 73, 164, 255)
+    @staticmethod
+    def drawarrows(screen, rect, prev, pos, nextpos):
+        w, h = round(rect.w * (1 / 10)), round(rect.h * (1 / 10))
+        center = pygame.Rect(0, 0, w, h)
+        center.center = rect.center
+
+        if prev is not None:
+            prev = Cell(*prev)
+        pos = Cell(*pos)
+        if nextpos is not None:
+            nextpos = Cell(*nextpos)
+
+        if prev is not None:
+            prevR = center.copy()
+            prevR.move_ip(*(pos.dirto(prev) * (rect.w / 2.5)))
+            pygame.draw.rect(screen, ReverseBWAgent.COLOR, prevR.union(center))
+
+        if nextpos is not None:
+            nextposR = center.copy()
+            nextdirrot = Cell.dirtonum(pos.dirto(nextpos)) * 90
+            nextposR.move_ip(*(pos.dirto(nextpos) * (rect.w / 4)))
+            pygame.draw.rect(screen, ReverseBWAgent.COLOR, nextposR.union(center))
+
+            center = pygame.Vector2(rect.center)
+            arrowhead = pygame.Vector2(-round(rect.w * 0.45), 0).rotate(nextdirrot) + center
+            arrowleft = pygame.Vector2(-round(rect.w * 0.245), round(rect.h * 0.20)).rotate(nextdirrot) + center
+            arrowright = pygame.Vector2(-round(rect.w * 0.245), -round(rect.h * 0.20)).rotate(nextdirrot) + center
+            pygame.draw.polygon(screen, ReverseBWAgent.COLOR, (arrowhead, arrowleft, arrowright))
+
+        if prev is not None and nextpos is None:
+            pygame.draw.circle(screen, ReverseBWAgent.COLOR, rect.center, (rect.w * 0.17))
+
+        if prev is None and nextpos is not None:
+            pygame.draw.circle(screen, ReverseBWAgent.COLOR, rect.center, (rect.w * 0.14))
+
 
 class Node:
     finished = None
@@ -107,22 +165,22 @@ class Node:
     def __lt__(self, other):
         return self.fScore < other.fScore
 
+    @staticmethod
+    def generate_path(node, includeStart=True):
+        path = deque([node])
+        Node.finished = node
+
+        while node.camefrom is not None:
+            node = node.camefrom
+            path.appendleft(node)
+
+        if not includeStart:
+            path.popleft()
+
+        return path
+
     @classmethod
     def A_star(cls, start, goal, first=False, depthlimit=0, includeStart=True):
-
-        def generate_path(node):
-            path = deque([node])
-            Node.finished = node
-
-            while node.camefrom is not None:
-                node = node.camefrom
-                path.appendleft(node)
-
-            if not includeStart:
-                path.popleft()
-
-            return path
-
         openSet = []
         heapq.heappush(openSet, start)
 
@@ -139,7 +197,7 @@ class Node:
             if current.failpoint(len(openSet), len(gScore), checks): break
 
             if current.satisfied or current is goal or (depthlimit != 0 and current.depth>=depthlimit):
-                return generate_path(current)
+                return Node.generate_path(current, includeStart)
 
             for neighbor in current.neighbors(gScore):
                 neighbor: Node
@@ -153,7 +211,7 @@ class Node:
                     neighbor.fScore = tentative_gScore + neighbor.hScore
 
                     if first and (neighbor.satisfied or neighbor is goal):
-                        return generate_path(neighbor)
+                        return Node.generate_path(neighbor, includeStart)
 
                     if neighbor not in openSet:
                         heapq.heappush(openSet, neighbor)
@@ -581,8 +639,8 @@ class ReverseBWStep(Node):
             return
         #print(self.hScore-hScore)
 
-        if ((self.snake.lookat(nextpos) != Snake.BODY and nextpos.toTuple() not in self.beenthere)
-            or (self.snake.getcellindex(nextpos) <= hScore and self.snake.in_cells(nextpos)) or hScore == 0):
+        if (((notbeenthere:=nextpos.toTuple() not in self.beenthere) and self.snake.lookat(nextpos) != Snake.BODY)
+            or (notbeenthere and self.snake.getcellindex(nextpos) <= hScore and self.snake.in_cells(nextpos)) or hScore == 0):
 
             if self.depth < len(self.snake):
 
@@ -612,8 +670,6 @@ class ReverseBWStep(Node):
         prev:Cell = pos
         nextiter = reversed(self.snake.snake)
         next(nextiter)
-
-        grid.printgrid()
 
         for cell in reversed(self.snake.snake):
             if lendiff <= 0:
@@ -654,8 +710,6 @@ class ReverseBWStep(Node):
 
         return True
 
-
-
     @staticmethod
     def celldirgridconverter(cell, basedirnum, i):
         """
@@ -665,46 +719,6 @@ class ReverseBWStep(Node):
         offset = offsets[(basedirnum+i)%4]
 
         return cell.x+offset[0], cell.y+offset[1]
-
-    def gridsnakecopy(self, grid, invert):
-        body0 = iter(self.snake)
-        body1 = iter(self.snake)
-        prevdirnum = None
-        next(body0)
-        next(body1)
-        next(body1)
-
-        i = 0
-        while (cell0 := next(body0, None)) is not None:
-            cell1 = next(body1, None)
-            if cell1 is None:
-                break
-
-            i += 1
-            if i <= self.depth:
-                continue
-
-            dirnum = Cell.dirtonum(cell0.dirto(cell1))
-            if prevdirnum is not None and prevdirnum != dirnum:
-                leftturn = (prevdirnum+3)%4==dirnum
-                backcornerpos = self.celldirgridconverter(cell0, dirnum, 3 if leftturn else 0)
-                if not grid.tryPlaceBW(backcornerpos, (not leftturn) if not invert else leftturn, True):
-                    #raise Exception("not possible")
-                    return False
-
-            prevdirnum = dirnum
-            frontleftpos = self.celldirgridconverter(cell0, dirnum, 1)
-            frontrightpos = self.celldirgridconverter(cell0, dirnum, 2)
-
-            if not grid.tryPlaceBW(frontleftpos, WHITE if not invert else BLACK, True):
-                #raise Exception("not possible")
-                return False
-
-            if not grid.tryPlaceBW(frontrightpos, BLACK if not invert else WHITE, True):
-                #raise Exception("not possible")
-                return False
-
-        return True
 
     def neighbors(self, seen):
         #print("d", self.depth, " f", self.fScore, "g ",  self.gScore, " h ", self.hScore)
@@ -764,7 +778,7 @@ class ReverseBWStep(Node):
         return dcomp > 0
 
     def failpoint(self, openSetSize, gScoreSize, checks):
-        fail = checks > self.snake.w*self.snake.h * 20
+        fail = checks > self.snake.w*self.snake.h * 100
         if fail:
             print("fail point reached!")
             pass
