@@ -636,8 +636,8 @@ class ReverseBWStep(Node):
                 closest = cell
         hScore = self.guide[closest] + dist
 
-        if self.hScore-hScore >= 3:
-            return
+        #if self.hScore-hScore >= 3:
+            #return False
         #print(self.hScore-hScore)
 
         promised = False
@@ -648,7 +648,7 @@ class ReverseBWStep(Node):
             if promised:
                 prommisedsteps = max(self.prommisedsteps, self.snake.getcellindex(nextpos)+1)
             if hScore == 0 and prommisedsteps > 0:
-                return
+                return False
             prommisedsteps -= 1
 
             if self.depth < len(self.snake):
@@ -668,12 +668,14 @@ class ReverseBWStep(Node):
 
                         if hScore == 0 and (lendiff:=(len(self.snake)-1-self.depth)): # overlapping long snake check
                             if not self.overlapcheck(self.pos, grid, lendiff):
-                                return
+                                return False
 
                         self.children[ReverseBWStep(nextpos, self.snake, grid, self.guide, dir, self.target, self.beenthere, hScore, prommisedsteps)] = 1
+                        return True
 
             else:
                 self.children[ReverseBWStep(nextpos, self.snake, self.grid, self.guide, dir, self.target, self.beenthere, hScore, prommisedsteps)] = 1
+                return True
 
     def overlapcheck(self, pos, grid, lendiff):
         prev:Cell = pos
@@ -768,6 +770,10 @@ class ReverseBWStep(Node):
                                 dist = d
                                 closest = cell
                         hScore = self.guide[closest] + dist
+
+                        if hScore == 0 and (lendiff:=(len(self.snake)-1-self.depth)): # overlapping long snake check
+                            if not self.overlapcheck(self.pos, grid, lendiff):
+                                continue
 
                         self.children[ReverseBWStep(nextpos, self.snake, grid, self.guide, direction, self.target, self.beenthere, hScore)] = 1
 
